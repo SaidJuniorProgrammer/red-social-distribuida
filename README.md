@@ -1,4 +1,4 @@
-# Red Social Distribuida 🌐
+# Red Social Distribuida 
 
 Proyecto práctico de diseño e implementación de una aplicación web distribuida que integra múltiples mecanismos de comunicación, persistencia y almacenamiento.
 
@@ -61,3 +61,31 @@ Aplicación web distribuida basada en microservicios y grafos que implementa las
 
 ## Decisiones Técnicas Relevantes
 *(Espacio para justificar por qué se separaron los archivos en S3, por qué no se usó una base relacional, etc.)*[cite: 1].
+
+## Explicación de la Estructura del Proyecto
+
+Dado que estamos utilizando herramientas nuevas y construyendo una arquitectura distribuida, la estructura de carpetas se diseñó para separar estrictamente las responsabilidades de cada tecnología. 
+
+### Backend (`/backend`)
+El backend utiliza **Quarkus + Java**, por lo que sigue el estándar de Maven (`src/main/java` y `src/main/resources`). Para evitar código espagueti, dividimos la lógica en capas:
+
+*   **`config/`**: Archivos de configuración de seguridad, credenciales de S3 (MinIO) y conexión al grafo (Neo4j).
+*   **`controller/`**: Únicamente los endpoints de nuestra API REST (ej. los `GET` y `POST` solicitados).
+*   **`websocket/`**: La lógica exclusiva para mantener la conexión persistente del chat en tiempo real, separada del REST tradicional.
+*   **`model/`**: Las entidades o nodos que vamos a guardar en Neo4j (ej. `Usuario`, `Post`).
+*   **`repository/`**: Aquí irán nuestras consultas avanzadas de Cypher para comunicarse con Neo4j.
+*   **`service/`**: La lógica de negocio pesada (ej. el algoritmo para recomendar amigos o la lógica para subir imágenes a S3).
+
+### Frontend (`/frontend`)
+En React, la clave es separar la interfaz (lo que el usuario ve) de la conexión con el servidor (cómo obtenemos los datos):
+
+*   **`components/` & `pages/`**: Todo el diseño visual, botones, y vistas (Login, Feed, Chat).
+*   **`services/`**: Esta es la carpeta más importante para la integración. Aquí se separa cómo el frontend habla con el backend:
+    *   `api.js`: Para las llamadas REST clásicas (CRUD).
+    *   `websocket.js`: Para manejar los mensajes del chat en tiempo real.
+    *   `webpush.js`: Para registrar y escuchar las notificaciones push.
+*   **`context/`**: Para mantener estados globales, como saber si el usuario inició sesión sin tener que pasarlo por cada componente.
+*   **`public/service-worker.js`**: Archivo fundamental que corre en segundo plano en el navegador para recibir las notificaciones Web Push incluso si el usuario no está tocando la pantalla.
+
+### Infraestructura Base (`docker-compose.yml`)
+Este archivo nos permite a los tres tener la misma base de datos (Neo4j) y el mismo simulador de S3 (MinIO) corriendo localmente con un solo comando, sin tener que instalar o configurar bases de datos manualmente en cada computadora.
