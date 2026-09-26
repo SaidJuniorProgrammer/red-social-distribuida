@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # Base de Datos de Grafos - Neo4j
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j-red-social
+    ports:
+      - "7474:7474" # Interfaz web de Neo4j
+      - "7687:7687" # Protocolo Bolt para que Quarkus se conecte
+    environment:
+      - NEO4J_AUTH=neo4j/password123 # Cambien la contraseña en producción
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+
+  # Almacenamiento de Archivos (Compatible con S3) - MinIO
+  s3-minio:
+    image: quay.io/minio/minio
+    container_name: s3-minio-red-social
+    ports:
+      - "9000:9000" # API compatible con S3
+      - "9001:9001" # Interfaz web de MinIO
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  neo4j_data:
+  minio_data:
