@@ -1,4 +1,4 @@
-# Red Social Distribuida 🌐
+# Red Social Distribuida 
 
 Proyecto práctico de diseño e implementación de una aplicación web distribuida que integra múltiples mecanismos de comunicación, persistencia y almacenamiento.
 
