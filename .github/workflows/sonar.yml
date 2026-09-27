@@ -24,7 +24,7 @@ jobs:
           distribution: 'temurin' # Distribución ideal para compilar Quarkus
 
       - name: Ejecutar Análisis de SonarCloud
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Este token lo inyecta GitHub automáticamente
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # El secreto que creaste en el paso 2
