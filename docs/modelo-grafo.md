@@ -4,8 +4,8 @@ Este documento define el modelo de datos en grafo que usa la aplicación.
 Es la fuente de verdad para los nodos, relaciones, propiedades y restricciones
 que se implementan en la capa `repository/` del backend Quarkus.
 
-> **Convención de nombres:** se usa `snake_case`, alineado con
-> [`docs/CONTRATOS.md`](CONTRATOS.md) (el acuerdo de API del equipo), para que
+> **Convención de nombres:** se usa `snake_case`, alineado con el acuerdo de API
+> del equipo (`docs/CONTRATOS.md`, que se incorpora en el PR #16), para que
 > los nombres de propiedad del grafo coincidan con los campos JSON del backend.
 >
 > **Regla de oro:** los archivos multimedia **NO** se guardan en Neo4j. En el
@@ -125,7 +125,7 @@ Se aplican con el script [`backend/src/main/resources/neo4j/01-schema.cypher`](.
 ## 5. Consultas Cypher clave (resumen)
 
 El detalle completo de las 5+ consultas no triviales vive en
-[`backend/src/main/resources/neo4j/03-consultas.cypher`](../backend/src/main/resources/neo4j/03-consultas.cypher).
+`backend/src/main/resources/neo4j/03-consultas.cypher` (se incorpora en el PR de la issue #12).
 Dos ejemplos que justifican el uso de un grafo:
 
 **Feed personalizado** (posts de los usuarios que sigo, ordenados por fecha):

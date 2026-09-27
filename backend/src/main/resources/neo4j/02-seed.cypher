@@ -2,11 +2,14 @@
 // 02-seed.cypher — Datos de prueba para demo / presentación
 // Crea usuarios, relaciones SIGUE, posts, reacciones y un chat.
 // Convención: snake_case, alineado con docs/CONTRATOS.md
-// OJO: password_hash aquí es un valor de ejemplo, no una contraseña real.
+// OJO:
+//  - password_hash aquí es un valor de ejemplo, no una contraseña real.
+//  - los id_* son cortos (u1, p1...) para legibilidad en la demo; en
+//    producción se generan como UUID.
+//  - este script NO borra la base. Para re-sembrar desde cero ejecuta antes
+//    00-reset.cypher (borra TODO). Las restricciones de 01-schema.cypher
+//    impiden crear ids duplicados si se corre dos veces.
 // ============================================================
-
-// Limpieza previa (solo para el entorno de pruebas)
-MATCH (n) DETACH DELETE n;
 
 // --- Usuarios ---
 CREATE (anthony:Usuario {id_usuario:'u1', username:'anthony', email:'anthony@demo.com', nombre:'Anthony', bio:'Dev backend',  password_hash:'demo-hash', fecha_registro: datetime()})
