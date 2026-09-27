@@ -89,3 +89,14 @@ En React, la clave es separar la interfaz (lo que el usuario ve) de la conexión
 
 ### Infraestructura Base (`docker-compose.yml`)
 Este archivo nos permite a los tres tener la misma base de datos (Neo4j) y el mismo simulador de S3 (MinIO) corriendo localmente con un solo comando, sin tener que instalar o configurar bases de datos manualmente en cada computadora.
+
+### Calidad de Código e Integración Continua (CI/CD)
+Para asegurar que el código que escribimos sea seguro, limpio y mantenible a lo largo del proyecto, implementamos herramientas de análisis automático:
+
+*   **`.github/workflows/sonar.yml`**: Archivo que define el *pipeline* de GitHub Actions. Cada vez que hacemos un *push* o abrimos un *Pull Request*, GitHub levanta un entorno con Java 17 y ejecuta SonarQube Cloud automáticamente para detectar bugs, *code smells* o vulnerabilidades de seguridad en nuestro código.
+*   **`sonar-project.properties`**: Archivo de configuración que le indica a SonarQube en qué carpetas buscar el código fuente de React y Quarkus, y qué directorios ignorar durante el escaneo.
+*   **CodeRabbit AI**: Bot de Inteligencia Artificial integrado directamente en nuestro repositorio de GitHub. Revisará automáticamente nuestros *Pull Requests*, resumiendo los cambios y dejando comentarios semánticos o sugerencias de mejora en el código.
+
+### Control de Versiones y Entorno
+*   **`.gitignore` y `.dockerignore`**: Archivos cruciales que configuramos para evitar subir o procesar carpetas pesadas e innecesarias (como `node_modules/` de React o los compilados de Java en la carpeta `target/`), manteniendo el repositorio y las imágenes de Docker ligeras.
+*   **Archivos `.gitkeep`**: Dado que Git ignora las carpetas vacías por defecto, colocamos estos archivos ocultos temporales para forzar la subida de nuestra estructura de arquitectura base a GitHub antes de empezar a programar los componentes o endpoints reales.
