@@ -11,8 +11,20 @@ Proyecto práctico de diseño e implementación de una aplicación web distribui
 Aplicación web distribuida basada en microservicios y grafos que implementa las funcionalidades esenciales de una red social[cite: 2]. El sistema separa estrictamente las responsabilidades, utilizando bases de datos orientadas a grafos para las relaciones sociales y almacenamiento de objetos para la multimedia[cite: 1, 2].
 
 ## Arquitectura
-*(Aquí insertaremos el diagrama de arquitectura definitivo mostrando cómo se comunican React, Quarkus, Neo4j y S3)*[cite: 1].
+```mermaid
+flowchart TD
+    React["💻 React (Frontend)"]
+    Quarkus["⚙️ Quarkus + Java (Backend)"]
+    Neo4j[("🕸️ Neo4j (Grafos)")]
+    S3[("📦 Object Storage S3 (Archivos)")]
+    Usuario(("👤 Usuario"))
 
+    React <-->|REST / HTTP| Quarkus
+    React <-->|WebSocket| Quarkus
+    Quarkus <-->|Cypher| Neo4j
+    Quarkus -->|S3 API| S3
+    Quarkus -.->|Web Push| Usuario
+```
 ## Tecnologías Utilizadas
 | Componente | Tecnología |
 |---|---|
