@@ -1,0 +1,19 @@
+# Control de versiones y CI/CD
+.git/
+.gitignore
+.dockerignore
+.github/
+
+# Documentación y configuración local
+docs/
+README.md
+sonar-project.properties
+docker-compose.yml
+
+# Ignorar dependencias locales del Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Ignorar compilados locales del Backend
+backend/target/

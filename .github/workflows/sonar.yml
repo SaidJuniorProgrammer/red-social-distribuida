@@ -1,0 +1,30 @@
+name: Análisis de Código SonarQube
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - dev-Said
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarcloud:
+    name: SonarQube Cloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Requerido por SonarQube para el análisis del historial
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'temurin' # Distribución ideal para compilar Quarkus
+
+      - name: Ejecutar Análisis de SonarCloud
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Este token lo inyecta GitHub automáticamente
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # El secreto que creaste en el paso 2
