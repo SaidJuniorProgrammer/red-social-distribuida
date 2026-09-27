@@ -29,8 +29,8 @@ CREATE (said)-[:PUBLICA]->(p2:Post   {id_post:'p2', texto:'Probando el feed dist
 CREATE (oscar)-[:PUBLICA]->(p3:Post  {id_post:'p3', texto:'Docker levantado con un solo comando', fecha_publicacion: datetime()})
 
 // --- Reacciones (tipo guardado en la relación) ---
-CREATE (anthony)-[:REACCIONA {tipo:'LIKE', fecha: datetime()}]->(p1)
-CREATE (estalin)-[:REACCIONA {tipo:'LOVE', fecha: datetime()}]->(p1)
+CREATE (anthony)-[:REACCIONA {tipo_reaccion:'LIKE', fecha: datetime()}]->(p1)
+CREATE (estalin)-[:REACCIONA {tipo_reaccion:'LOVE', fecha: datetime()}]->(p1)
 
 // --- Conversacion + mensajes (historial del chat) ---
 CREATE (conv:Conversacion {id_conversacion:'c1', fecha_creacion: datetime()})

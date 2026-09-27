@@ -25,7 +25,7 @@ graph LR
 
     U1 -- "SIGUE {desde}" --> U2
     U1 -- "PUBLICA" --> P
-    U1 -- "REACCIONA {tipo, fecha}" --> P
+    U1 -- "REACCIONA {tipo_reaccion, fecha}" --> P
     U1 -- "PARTICIPA" --> C
     U2 -- "PARTICIPA" --> C
     U1 -- "ENVIA" --> M
@@ -95,7 +95,7 @@ Un mensaje individual dentro de una conversación (historial del chat).
 |------------------|------------------------------------|----------------------|-----------------------------------------------|
 | `[:SIGUE]`       | `(:Usuario)-->(:Usuario)`          | `desde` (DateTime)   | A sigue a B. **Dirigida** (no es recíproca).  |
 | `[:PUBLICA]`     | `(:Usuario)-->(:Post)`             | —                    | Autoría de una publicación.                   |
-| `[:REACCIONA]`   | `(:Usuario)-->(:Post)`             | `tipo`, `fecha`      | Reacción (LIKE, LOVE, ...) a un post.         |
+| `[:REACCIONA]`   | `(:Usuario)-->(:Post)`             | `tipo_reaccion`, `fecha` | Reacción (LIKE, LOVE, ...) a un post.     |
 | `[:PARTICIPA]`   | `(:Usuario)-->(:Conversacion)`     | —                    | El usuario es parte de la conversación.       |
 | `[:ENVIA]`       | `(:Usuario)-->(:Mensaje)`          | —                    | Quién escribió el mensaje.                     |
 | `[:EN]`          | `(:Mensaje)-->(:Conversacion)`     | —                    | A qué conversación pertenece el mensaje.      |
@@ -103,10 +103,10 @@ Un mensaje individual dentro de una conversación (historial del chat).
 Notas de diseño:
 - `SIGUE` es **dirigida**: `(A)-[:SIGUE]->(B)` no implica `(B)-[:SIGUE]->(A)`.
   La "amistad mutua" se detecta cuando existen las dos flechas.
-- La reacción guarda `tipo` **en la relación**, no en un nodo aparte. Así el mismo
-  patrón sirve para LIKE/LOVE/HAHA cambiando solo una propiedad.
-  *(El contrato usa `tipo`; el issue #7 lo mencionaba como `tipo_reaccion` — se
-  unifica en `tipo` para respetar `CONTRATOS.md`.)*
+- La reacción guarda `tipo_reaccion` **en la relación**, no en un nodo aparte. Así el
+  mismo patrón sirve para LIKE/LOVE/HAHA cambiando solo una propiedad.
+  *(Se usa `tipo_reaccion` según la issue #7. ⚠️ `CONTRATOS.md` lo lista como `tipo`;
+  pendiente unificar con Said para que el backend lea el mismo nombre.)*
 - El chat usa un nodo `Conversacion` intermedio en vez de una relación directa
   `Usuario-Usuario`, para poder colgar muchos `Mensaje` y escalar a grupos.
 
