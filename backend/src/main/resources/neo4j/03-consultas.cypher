@@ -1,9 +1,10 @@
 // ============================================================
-// 03-consultas.cypher — Consultas Cypher no triviales (5+)
-// La actividad exige mínimo 5, y al menos una que recorra
+// 03-consultas.cypher — Consultas Cypher no triviales (5+) + escritura del grafo
+// Consultas de LECTURA (1-7) y de ESCRITURA del grafo social (8 seguir, 9 dejar de seguir).
+// La actividad exige mínimo 5 no triviales, y al menos una que recorra
 // relaciones de MÁS de un nivel (la #4 y #6 lo hacen).
 // Convención: snake_case, alineado con docs/CONTRATOS.md
-// Reemplaza $miId por un id real (ej. 'u1') al probar en Neo4j Browser.
+// Reemplaza $miId / $idDestino / $otroId por ids reales (ej. 'u1') al probar.
 // ============================================================
 
 // ------------------------------------------------------------
@@ -68,3 +69,27 @@ RETURN DISTINCT alcanzado.username AS en_mi_red;
 MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE]->(otro:Usuario)
 WHERE (otro)-[:SIGUE]->(yo)
 RETURN otro.username AS se_siguen_mutuamente;
+
+// ============================================================
+// ESCRITURA DEL GRAFO SOCIAL
+// ============================================================
+
+// ------------------------------------------------------------
+// 8) SEGUIR a un usuario
+//    MERGE evita relaciones SIGUE duplicadas (idempotente).
+//    ON CREATE guarda la fecha solo la primera vez.
+//    El WHERE impide que alguien se siga a sí mismo.
+// ------------------------------------------------------------
+MATCH (a:Usuario {id_usuario: $miId}), (b:Usuario {id_usuario: $idDestino})
+WHERE a <> b
+MERGE (a)-[r:SIGUE]->(b)
+  ON CREATE SET r.desde = datetime()
+RETURN a.username AS sigo_ahora_a, b.username AS seguido;
+
+// ------------------------------------------------------------
+// 9) DEJAR DE SEGUIR a un usuario
+//    Borra únicamente la relación SIGUE, no los nodos.
+// ------------------------------------------------------------
+MATCH (a:Usuario {id_usuario: $miId})-[r:SIGUE]->(b:Usuario {id_usuario: $idDestino})
+DELETE r
+RETURN a.username AS dejo_de_seguir_a, b.username AS ex_seguido;
