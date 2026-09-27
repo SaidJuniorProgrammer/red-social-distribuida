@@ -1,0 +1,36 @@
+# ========================
+# Node.js / React (Frontend)
+# ========================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.*
+npm-debug.log*
+yarn-error.log*
+
+# ========================
+# Java / Quarkus (Backend)
+# ========================
+backend/target/
+*.class
+*.log
+*.jar
+*.war
+.mvn/
+
+# ========================
+# IDEs y Sistema Operativo
+# ========================
+.idea/
+.vscode/
+*.suo
+*.sw?
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ========================
+# SonarQube & Otros
+# ========================
+.scannerwork/
