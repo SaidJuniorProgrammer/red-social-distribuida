@@ -11,8 +11,20 @@ Proyecto práctico de diseño e implementación de una aplicación web distribui
 Aplicación web distribuida basada en microservicios y grafos que implementa las funcionalidades esenciales de una red social[cite: 2]. El sistema separa estrictamente las responsabilidades, utilizando bases de datos orientadas a grafos para las relaciones sociales y almacenamiento de objetos para la multimedia[cite: 1, 2].
 
 ## Arquitectura
-*(Aquí insertaremos el diagrama de arquitectura definitivo mostrando cómo se comunican React, Quarkus, Neo4j y S3)*[cite: 1].
+```mermaid
+flowchart TD
+    React["💻 React (Frontend)"]
+    Quarkus["⚙️ Quarkus + Java (Backend)"]
+    Neo4j[("🕸️ Neo4j (Grafos)")]
+    S3[("📦 Object Storage S3 (Archivos)")]
+    Usuario(("👤 Usuario"))
 
+    React <-->|REST / HTTP| Quarkus
+    React <-->|WebSocket| Quarkus
+    Quarkus <-->|Cypher| Neo4j
+    Quarkus -->|S3 API| S3
+    Quarkus -.->|Web Push| Usuario
+```
 ## Tecnologías Utilizadas
 | Componente | Tecnología |
 |---|---|
@@ -38,7 +50,28 @@ Aplicación web distribuida basada en microservicios y grafos que implementa las
 - `S3_SECRET_KEY`=...
 
 ## Modelo del Grafo
-*(Aquí documentaremos los nodos como `(:Usuario)`, `(:Post)` y sus relaciones como `[:SIGUE]`, `[:PUBLICA]`, `[:REACCIONA]`)*[cite: 1, 2].
+
+La documentación completa (propiedades, restricciones y consultas) está en
+[`docs/modelo-grafo.md`](docs/modelo-grafo.md). Resumen:
+
+**Nodos**
+- `(:Usuario)` — `id_usuario`, `username`, `email`, `password_hash`, `nombre`, `bio`, `avatar_url`, `fecha_registro`.
+- `(:Post)` — `id_post`, `texto`, `media_url` (clave en MinIO/S3), `media_tipo`, `fecha_publicacion`.
+- `(:Conversacion)` y `(:Mensaje)` — base para el chat en tiempo real.
+
+**Relaciones**
+```text
+(:Usuario)-[:SIGUE {desde}]->(:Usuario)                 // grafo social (dirigida)
+(:Usuario)-[:PUBLICA]->(:Post)                          // autoría
+(:Usuario)-[:REACCIONA {tipo_reaccion, fecha}]->(:Post) // reacciones (LIKE, LOVE, ...)
+(:Usuario)-[:PARTICIPA]->(:Conversacion)                // chat
+(:Usuario)-[:ENVIA]->(:Mensaje)-[:EN]->(:Conversacion)  // historial de mensajes
+```
+
+**Decisiones clave**
+- `SIGUE` es **dirigida**: la amistad mutua es cuando existen las dos flechas.
+- El **tipo de reacción va en la relación** (`REACCIONA {tipo_reaccion}`), no en un nodo aparte.
+- La **multimedia NO se guarda en Neo4j**: el nodo `Post` solo guarda `media_url` (la referencia al objeto en MinIO/S3).
 
 ## Endpoints Principales (API REST)
 - `POST /usuarios` - Registro de usuario[cite: 1].
