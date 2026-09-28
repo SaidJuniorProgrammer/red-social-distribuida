@@ -28,11 +28,17 @@ ORDER BY seguido;
 //    Posts SOLO de los usuarios que sigo, ordenados por fecha.
 //    (no es "todos los posts del sistema")
 // ------------------------------------------------------------
-MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE]->(:Usuario)-[:PUBLICA]->(p:Post)
+// Devuelve los campos del contrato GET /api/feed (id_post, autor, texto, media_url).
+// Se agrupa por p.id_post (único) para que cada publicación sea UNA fila y las
+// reacciones no se mezclen entre posts con mismo texto/fecha.
+MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE]->(autor:Usuario)-[:PUBLICA]->(p:Post)
 OPTIONAL MATCH (p)<-[r:REACCIONA]-()
-RETURN p.texto             AS publicacion,
-       p.fecha_publicacion AS fecha,
-       count(r)            AS reacciones
+RETURN p.id_post            AS id_post,
+       autor.username       AS autor,
+       p.texto              AS texto,
+       p.media_url          AS media_url,
+       p.fecha_publicacion  AS fecha_publicacion,
+       count(r)             AS reacciones
 ORDER BY p.fecha_publicacion DESC
 LIMIT 20;
 
