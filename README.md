@@ -39,7 +39,13 @@ flowchart TD
 ## Instrucciones de Ejecución
 1. Clonar el repositorio.
 2. Levantar la infraestructura base ejecutando: `docker-compose up -d`[cite: 1].
-3. *(Añadir los comandos para levantar Quarkus y React cuando estén configurados)*.
+3. Instalar y levantar el frontend:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+4. *(Añadir el comando para levantar Quarkus cuando esté configurado)*.
 
 ### Variables de Entorno Necesarias
 - `NEO4J_URI`=bolt://localhost:7687
@@ -48,6 +54,7 @@ flowchart TD
 - `S3_ENDPOINT`=http://localhost:9000
 - `S3_ACCESS_KEY`=...
 - `S3_SECRET_KEY`=...
+- `VITE_API_BASE_URL`=http://localhost:8080/api *(opcional; este es el valor predeterminado del frontend)*
 
 ## Modelo del Grafo
 *(Aquí documentaremos los nodos como `(:Usuario)`, `(:Post)` y sus relaciones como `[:SIGUE]`, `[:PUBLICA]`, `[:REACCIONA]`)*[cite: 1, 2].
