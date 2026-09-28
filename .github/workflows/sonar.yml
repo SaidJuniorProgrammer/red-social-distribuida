@@ -23,6 +23,12 @@ jobs:
           java-version: 17
           distribution: 'temurin' # Distribución ideal para compilar Quarkus
 
+      - name: Compilar y generar reporte de pruebas en GitHub
+        run: |
+          cd backend
+          chmod +x mvnw
+          ./mvnw clean verify
+
       - name: Ejecutar Análisis de SonarCloud
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
         env:
