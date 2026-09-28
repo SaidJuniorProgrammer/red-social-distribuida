@@ -1,34 +1,24 @@
-version: '3.8'
+name: red-social-distribuida
 
 services:
-  # Base de Datos de Grafos - Neo4j
+  # Base de Datos de Grafos
   neo4j:
-    image: neo4j:latest
-    container_name: neo4j-red-social
+    image: neo4j:5
     ports:
-      - "7474:7474" # Interfaz web de Neo4j
-      - "7687:7687" # Protocolo Bolt para que Quarkus se conecte
+      - "7474:7474"
+      - "7687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/password123 # Cambien la contraseña en producción
+      - NEO4J_AUTH=neo4j/password123
     volumes:
       - neo4j_data:/data
-    restart: unless-stopped
 
-  # Almacenamiento de Archivos (Compatible con S3) - MinIO
-  s3-minio:
-    image: quay.io/minio/minio
-    container_name: s3-minio-red-social
+  # Object Storage (S3 Compatible) - Adobe S3Mock (100% Gratuito y Libre)
+  s3-storage:
+    image: adobe/s3mock:latest
     ports:
-      - "9000:9000" # API compatible con S3
-      - "9001:9001" # Interfaz web de MinIO
+      - "9090:9090" # Puerto HTTP para que se conecte Quarkus
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password123
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    restart: unless-stopped
+      - initialBuckets=red-social-bucket # ¡Crea el bucket por ti!
 
 volumes:
   neo4j_data:
-  minio_data:
