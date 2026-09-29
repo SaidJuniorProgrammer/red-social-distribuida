@@ -47,6 +47,18 @@ flowchart TD
    ```
 4. *(Añadir el comando para levantar Quarkus cuando esté configurado)*.
 
+### Validación del Frontend
+
+Desde el directorio `frontend`, ejecutar:
+
+```bash
+npm run lint
+npm run test:coverage
+npm run build
+```
+
+El reporte LCOV se genera en `frontend/coverage/lcov.info` y es utilizado por SonarQube Cloud para calcular la cobertura del código.
+
 ### Variables de Entorno Necesarias
 - `NEO4J_URI`=bolt://localhost:7687
 - `NEO4J_USER`=neo4j

@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 
+/** Configura las rutas públicas iniciales de la aplicación. */
 function App() {
   return (
     <Routes>

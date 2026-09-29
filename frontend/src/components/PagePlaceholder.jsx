@@ -1,3 +1,9 @@
+/**
+ * Renderiza el contenido provisional de una ruta todavía no implementada.
+ *
+ * @param {{ description: string, title: string }} props Contenido de la página.
+ * @returns {import('react').JSX.Element} Página provisional.
+ */
 function PagePlaceholder({ description, title }) {
   return (
     <main className="page-placeholder">

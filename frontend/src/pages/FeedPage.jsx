@@ -1,5 +1,6 @@
 import PagePlaceholder from '../components/PagePlaceholder.jsx'
 
+/** Renderiza la página provisional del feed. */
 function FeedPage() {
   return (
     <PagePlaceholder
