@@ -19,7 +19,7 @@ public class AuthService {
     public void registrarUsuario(RegisterRequest request) {
         String id = UUID.randomUUID().toString();
 
-        String passwordHash = BCrypt.hashpw(request.password, BCrypt.gensalt(12));
+        String passwordHash = BCrypt.hashpw(request.password, BCrypt.gensalt(10));
 
         usuarioRepository.crearUsuario(id, request.username, request.email, passwordHash);
     }
