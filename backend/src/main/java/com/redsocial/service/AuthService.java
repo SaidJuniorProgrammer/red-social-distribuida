@@ -13,13 +13,11 @@ import com.redsocial.dto.LoginRequest;
 import io.smallrye.jwt.build.Jwt;
 import java.time.Duration;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class AuthService {
 
     private static final int MIN_PASSWORD_LENGTH = 8;
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^\\S+@\\S+\\.\\S+$");
 
     @Inject
     UsuarioRepository usuarioRepository;
@@ -85,7 +83,7 @@ public class AuthService {
         if (email.isEmpty()) {
             throw new RegistrationValidationException("email", "Ingresa tu correo electrónico.");
         }
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
+        if (!emailValido(email)) {
             throw new RegistrationValidationException("email", "Ingresa un correo electrónico válido.");
         }
         if (password.length() < MIN_PASSWORD_LENGTH) {
@@ -98,5 +96,16 @@ public class AuthService {
 
     private String normalizar(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private boolean emailValido(String email) {
+        int atIndex = email.indexOf('@');
+        int dotIndex = email.lastIndexOf('.');
+
+        return atIndex > 0
+                && atIndex == email.lastIndexOf('@')
+                && dotIndex > atIndex + 1
+                && dotIndex < email.length() - 1
+                && email.chars().noneMatch(Character::isWhitespace);
     }
 }

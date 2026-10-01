@@ -41,7 +41,7 @@ function LoginPage() {
     setIsSubmitting(true)
     try {
       await login({ username: form.username.trim(), password: form.password })
-      navigate(location.state?.from ?? '/feed', { replace: true })
+      await navigate(location.state?.from ?? '/feed', { replace: true })
     } catch (error) {
       setFormError(getLoginErrorMessage(error))
     } finally {

@@ -49,7 +49,7 @@ function RegisterPage() {
         email: form.email.trim(),
         password: form.password,
       })
-      navigate('/login', { replace: true, state: { registrationSuccess: true } })
+      await navigate('/login', { replace: true, state: { registrationSuccess: true } })
     } catch (error) {
       const feedback = getRegistrationFeedback(error)
 

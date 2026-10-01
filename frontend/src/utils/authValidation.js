@@ -1,4 +1,16 @@
-const EMAIL_PATTERN = /^\S+@\S+\.\S+$/
+export function isValidEmail(email) {
+  const atIndex = email.indexOf('@')
+  const dotIndex = email.lastIndexOf('.')
+  const hasWhitespace = [...email].some((character) => character.trim() === '')
+
+  return (
+    atIndex > 0 &&
+    atIndex === email.lastIndexOf('@') &&
+    dotIndex > atIndex + 1 &&
+    dotIndex < email.length - 1 &&
+    !hasWhitespace
+  )
+}
 
 export function validateLoginForm(form) {
   const errors = {}
@@ -16,7 +28,7 @@ export function validateRegisterForm(form) {
 
   if (!form.email.trim()) {
     errors.email = 'Ingresa tu correo electrónico.'
-  } else if (!EMAIL_PATTERN.test(form.email)) {
+  } else if (!isValidEmail(form.email)) {
     errors.email = 'Ingresa un correo electrónico válido.'
   }
 

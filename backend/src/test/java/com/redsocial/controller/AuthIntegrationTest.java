@@ -184,7 +184,18 @@ public class AuthIntegrationTest {
             .body("code", equalTo("INVALID_REGISTRATION"))
             .body("field", equalTo("password"));
 
-        // 5. Login exitoso (200 y devuelve token)
+        // 5. El correo debe tener una estructura válida
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"correo_invalido\",\"email\":\"usuario@@test.com\",\"password\":\"" + testPassword + "\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(400)
+            .body("code", equalTo("INVALID_REGISTRATION"))
+            .body("field", equalTo("email"));
+
+        // 6. Login exitoso (200 y devuelve token)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"" + testUser + "\",\"password\":\"" + testPassword + "\"}")
@@ -194,7 +205,7 @@ public class AuthIntegrationTest {
             .statusCode(200)
             .body(containsString("token"));
 
-        // 6. Login fallido por contraseña incorrecta (401)
+        // 7. Login fallido por contraseña incorrecta (401)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"" + testUser + "\",\"password\":\"clave_incorrecta\"}")
@@ -204,7 +215,7 @@ public class AuthIntegrationTest {
             .statusCode(401)
             .body("code", equalTo("INVALID_CREDENTIALS"));
 
-        // 7. Login fallido por usuario inexistente (401)
+        // 8. Login fallido por usuario inexistente (401)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"no_existe\",\"password\":\"password123\"}")
@@ -214,7 +225,7 @@ public class AuthIntegrationTest {
             .statusCode(401)
             .body("code", equalTo("INVALID_CREDENTIALS"));
 
-        // 8. Registro fallido por error de base de datos (500)
+        // 9. Registro fallido por error de base de datos (500)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"error_db\",\"email\":\"error@test.com\",\"password\":\"password123\"}")
