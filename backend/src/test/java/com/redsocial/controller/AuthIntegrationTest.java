@@ -14,6 +14,7 @@ import org.neo4j.driver.TransactionCallback;
 import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
+import org.neo4j.driver.exceptions.ClientException;
 
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
@@ -26,14 +27,23 @@ import static org.hamcrest.CoreMatchers.equalTo;
 @QuarkusTest
 public class AuthIntegrationTest {
 
+    private static final String CONSTRAINT_VALIDATION_FAILED =
+            "Neo.ClientError.Schema.ConstraintValidationFailed";
+    private static final String CONCURRENT_USERNAME = "usuario_concurrente";
+    private static final String CONCURRENT_EMAIL = "concurrente@test.com";
+
     @Inject
     UsuarioRepository usuarioRepository;
 
     private final Map<String, TestUser> usuariosEnMemoria = new HashMap<>();
+    private int consultasUsernameConcurrente;
+    private int consultasEmailConcurrente;
 
     @BeforeEach
     public void configurarDriverEnMemoria() {
         usuariosEnMemoria.clear();
+        consultasUsernameConcurrente = 0;
+        consultasEmailConcurrente = 0;
 
         TransactionContext txProxy = (TransactionContext) Proxy.newProxyInstance(
             TransactionContext.class.getClassLoader(),
@@ -50,20 +60,38 @@ public class AuthIntegrationTest {
                             throw new RuntimeException("Fallo simulado de Neo4j");
                         }
 
-                        boolean exists = query.contains("username")
-                                ? usuariosEnMemoria.containsKey(value)
-                                : usuariosEnMemoria.values().stream()
-                                        .anyMatch(user -> user.email().equals(value));
+                        boolean exists;
+                        if (query.contains("username") && CONCURRENT_USERNAME.equals(value)) {
+                            consultasUsernameConcurrente++;
+                            exists = consultasUsernameConcurrente > 1;
+                        } else if (query.contains("email") && CONCURRENT_EMAIL.equals(value)) {
+                            consultasEmailConcurrente++;
+                            exists = consultasEmailConcurrente > 1;
+                        } else {
+                            exists = query.contains("username")
+                                    ? usuariosEnMemoria.containsKey(value)
+                                    : usuariosEnMemoria.values().stream()
+                                            .anyMatch(user -> user.email().equals(value));
+                        }
 
                         return crearResultSimulado("exists", Values.value(exists), true);
                     }
 
                     if (query.contains("CREATE")) {
                         String username = params.get("username").asString();
+                        String email = params.get("email").asString();
+
+                        if (CONCURRENT_USERNAME.equals(username) || CONCURRENT_EMAIL.equals(email)) {
+                            throw new ClientException(
+                                    CONSTRAINT_VALIDATION_FAILED,
+                                    "Conflicto de unicidad simulado"
+                            );
+                        }
+
                         usuariosEnMemoria.put(
                                 username,
                                 new TestUser(
-                                        params.get("email").asString(),
+                                        email,
                                         params.get("password_hash").asString()
                                 )
                         );
@@ -234,5 +262,29 @@ public class AuthIntegrationTest {
         .then()
             .statusCode(500)
             .body("code", equalTo("REGISTRATION_FAILED"));
+
+        // 10. Un conflicto concurrente de username también debe responder 409
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"" + CONCURRENT_USERNAME
+                    + "\",\"email\":\"otro-concurrente@test.com\",\"password\":\"password123\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(409)
+            .body("code", equalTo("USERNAME_ALREADY_EXISTS"))
+            .body("field", equalTo("username"));
+
+        // 11. Un conflicto concurrente de email también debe responder 409
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"usuario_email_concurrente\",\"email\":\""
+                    + CONCURRENT_EMAIL + "\",\"password\":\"password123\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(409)
+            .body("code", equalTo("EMAIL_ALREADY_EXISTS"))
+            .body("field", equalTo("email"));
     }
 }

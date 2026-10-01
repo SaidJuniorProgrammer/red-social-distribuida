@@ -8,6 +8,7 @@ import com.redsocial.repository.UsuarioRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.mindrot.jbcrypt.BCrypt;
+import org.neo4j.driver.exceptions.ClientException;
 import java.util.UUID;
 import com.redsocial.dto.LoginRequest;
 import io.smallrye.jwt.build.Jwt;
@@ -18,6 +19,8 @@ import java.util.Locale;
 public class AuthService {
 
     private static final int MIN_PASSWORD_LENGTH = 8;
+    private static final String CONSTRAINT_VALIDATION_FAILED =
+            "Neo.ClientError.Schema.ConstraintValidationFailed";
 
     @Inject
     UsuarioRepository usuarioRepository;
@@ -34,25 +37,21 @@ public class AuthService {
         validarRegistro(username, email, password);
 
         if (usuarioRepository.existeUsername(username)) {
-            throw new RegistrationConflictException(
-                    "USERNAME_ALREADY_EXISTS",
-                    "username",
-                    "Ese nombre de usuario ya está registrado."
-            );
+            throw conflictoUsername();
         }
 
         if (usuarioRepository.existeEmail(email)) {
-            throw new RegistrationConflictException(
-                    "EMAIL_ALREADY_EXISTS",
-                    "email",
-                    "Ese correo electrónico ya está registrado."
-            );
+            throw conflictoEmail();
         }
 
         String id = UUID.randomUUID().toString();
         String passwordHash = BCrypt.hashpw(password, BCrypt.gensalt(10));
 
-        usuarioRepository.crearUsuario(id, username, email, passwordHash);
+        try {
+            usuarioRepository.crearUsuario(id, username, email, passwordHash);
+        } catch (ClientException exception) {
+            manejarConflictoConcurrente(exception, username, email);
+        }
     }
 
     public String login(LoginRequest request) {
@@ -107,5 +106,41 @@ public class AuthService {
                 && dotIndex > atIndex + 1
                 && dotIndex < email.length() - 1
                 && email.chars().noneMatch(Character::isWhitespace);
+    }
+
+    private void manejarConflictoConcurrente(
+            ClientException exception,
+            String username,
+            String email
+    ) {
+        if (!CONSTRAINT_VALIDATION_FAILED.equals(exception.code())) {
+            throw exception;
+        }
+
+        if (usuarioRepository.existeUsername(username)) {
+            throw conflictoUsername();
+        }
+
+        if (usuarioRepository.existeEmail(email)) {
+            throw conflictoEmail();
+        }
+
+        throw exception;
+    }
+
+    private RegistrationConflictException conflictoUsername() {
+        return new RegistrationConflictException(
+                "USERNAME_ALREADY_EXISTS",
+                "username",
+                "Ese nombre de usuario ya está registrado."
+        );
+    }
+
+    private RegistrationConflictException conflictoEmail() {
+        return new RegistrationConflictException(
+                "EMAIL_ALREADY_EXISTS",
+                "email",
+                "Ese correo electrónico ya está registrado."
+        );
     }
 }

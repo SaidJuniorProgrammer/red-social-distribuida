@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App.jsx'
@@ -6,6 +6,7 @@ import AuthProvider from '../src/context/AuthProvider.jsx'
 import { AUTH_STORAGE_KEY } from '../src/context/authStorage.js'
 import api from '../src/services/api.js'
 import { AUTH_ERROR_CODES } from '../src/services/authErrors.js'
+import { createJwt } from './testUtils.js'
 
 function renderApp(path) {
   return render(
@@ -43,6 +44,7 @@ function fillRegister() {
 
 afterEach(() => {
   localStorage.clear()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -116,6 +118,80 @@ describe('inicio de sesión', () => {
     })
 
     expect(response.data).toBe('Bearer jwt-activo')
+  })
+
+  it('cierra la sesión cuando el JWT vence mientras la aplicación está abierta', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-30T12:00:00Z'))
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        token: createJwt(Math.floor(Date.now() / 1000) + 1),
+        user: { username: 'oscar' },
+      }),
+    )
+    renderApp('/feed')
+
+    expect(screen.getByText('Sesión activa')).toBeInTheDocument()
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(screen.getByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
+
+  it('cierra una sesión activa cuando la API responde 401', async () => {
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+    )
+    renderApp('/feed')
+
+    await act(async () => {
+      await expect(
+        api.get('/ruta-protegida', {
+          adapter: async (config) => Promise.reject({
+            config,
+            response: { status: 401 },
+          }),
+        }),
+      ).rejects.toMatchObject({ response: { status: 401 } })
+    })
+
+    expect(screen.getByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
+
+  it('mantiene la sesión en memoria si localStorage no permite guardarla', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Almacenamiento no disponible')
+    })
+    vi.spyOn(api, 'post').mockResolvedValue({ data: { token: 'jwt-prueba' } })
+    renderApp('/login')
+    fillLogin()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Hola, @oscar' }),
+    ).toBeInTheDocument()
+  })
+
+  it('cierra la sesión aunque localStorage no permita eliminarla', async () => {
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+    )
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new DOMException('Almacenamiento no disponible')
+    })
+    renderApp('/feed')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+
+    expect(screen.getByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
   })
 })
 
