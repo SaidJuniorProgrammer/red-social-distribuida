@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { readSession } from '../context/authStorage.js'
 
 const api = axios.create({
   baseURL:
@@ -6,6 +7,16 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+})
+
+api.interceptors.request.use((config) => {
+  const token = readSession()?.token
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+
+  return config
 })
 
 export default api
