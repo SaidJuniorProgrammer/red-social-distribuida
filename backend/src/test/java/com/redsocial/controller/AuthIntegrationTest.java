@@ -14,6 +14,7 @@ import org.neo4j.driver.TransactionCallback;
 import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
+import org.neo4j.driver.exceptions.ClientException;
 
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
@@ -21,18 +22,28 @@ import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 @QuarkusTest
 public class AuthIntegrationTest {
 
+    private static final String CONSTRAINT_VALIDATION_FAILED =
+            "Neo.ClientError.Schema.ConstraintValidationFailed";
+    private static final String CONCURRENT_USERNAME = "usuario_concurrente";
+    private static final String CONCURRENT_EMAIL = "concurrente@test.com";
+
     @Inject
     UsuarioRepository usuarioRepository;
 
-    private final Map<String, String> usuariosEnMemoria = new HashMap<>();
+    private final Map<String, TestUser> usuariosEnMemoria = new HashMap<>();
+    private int consultasUsernameConcurrente;
+    private int consultasEmailConcurrente;
 
     @BeforeEach
     public void configurarDriverEnMemoria() {
         usuariosEnMemoria.clear();
+        consultasUsernameConcurrente = 0;
+        consultasEmailConcurrente = 0;
 
         TransactionContext txProxy = (TransactionContext) Proxy.newProxyInstance(
             TransactionContext.class.getClassLoader(),
@@ -41,20 +52,56 @@ public class AuthIntegrationTest {
                 if ("run".equals(method.getName())) {
                     String query = (String) args[0];
                     Value params = (Value) args[1];
-                    String username = params.get("username").asString();
 
-                    if ("error_db".equals(username)) {
-                        throw new RuntimeException("Fallo simulado de Neo4j");
+                    if (query.contains("count(u) > 0 AS exists")) {
+                        String value = params.get("value").asString();
+
+                        if ("error_db".equals(value)) {
+                            throw new RuntimeException("Fallo simulado de Neo4j");
+                        }
+
+                        boolean exists;
+                        if (query.contains("username") && CONCURRENT_USERNAME.equals(value)) {
+                            consultasUsernameConcurrente++;
+                            exists = consultasUsernameConcurrente > 1;
+                        } else if (query.contains("email") && CONCURRENT_EMAIL.equals(value)) {
+                            consultasEmailConcurrente++;
+                            exists = consultasEmailConcurrente > 1;
+                        } else {
+                            exists = query.contains("username")
+                                    ? usuariosEnMemoria.containsKey(value)
+                                    : usuariosEnMemoria.values().stream()
+                                            .anyMatch(user -> user.email().equals(value));
+                        }
+
+                        return crearResultSimulado("exists", Values.value(exists), true);
                     }
 
                     if (query.contains("CREATE")) {
-                        usuariosEnMemoria.put(username, params.get("password_hash").asString());
+                        String username = params.get("username").asString();
+                        String email = params.get("email").asString();
+
+                        if (CONCURRENT_USERNAME.equals(username) || CONCURRENT_EMAIL.equals(email)) {
+                            throw new ClientException(
+                                    CONSTRAINT_VALIDATION_FAILED,
+                                    "Conflicto de unicidad simulado"
+                            );
+                        }
+
+                        usuariosEnMemoria.put(
+                                username,
+                                new TestUser(
+                                        email,
+                                        params.get("password_hash").asString()
+                                )
+                        );
                         return null;
                     }
 
-                    if (query.contains("MATCH")) {
-                        String hash = usuariosEnMemoria.get(username);
-                        return crearResultSimulado(hash);
+                    if (query.contains("password_hash")) {
+                        TestUser user = usuariosEnMemoria.get(params.get("username").asString());
+                        Value hash = user == null ? Values.NULL : Values.value(user.passwordHash());
+                        return crearResultSimulado("hash", hash, user != null);
                     }
                 }
                 return null;
@@ -87,13 +134,13 @@ public class AuthIntegrationTest {
         usuarioRepository.setDriver(driverProxy);
     }
 
-    private Result crearResultSimulado(String hash) {
+    private Result crearResultSimulado(String key, Value value, boolean hasNext) {
         Record recordProxy = (Record) Proxy.newProxyInstance(
             Record.class.getClassLoader(),
-            new Class[]{Record.class},
-            (proxy, method, args) -> {
-                if ("get".equals(method.getName())) {
-                    return Values.value(hash);
+                new Class[]{Record.class},
+                (proxy, method, args) -> {
+                if ("get".equals(method.getName()) && key.equals(args[0])) {
+                    return value;
                 }
                 return null;
             }
@@ -101,10 +148,10 @@ public class AuthIntegrationTest {
 
         return (Result) Proxy.newProxyInstance(
             Result.class.getClassLoader(),
-            new Class[]{Result.class},
-            (proxy, method, args) -> {
+                new Class[]{Result.class},
+                (proxy, method, args) -> {
                 if ("hasNext".equals(method.getName())) {
-                    return hash != null;
+                    return hasNext;
                 }
                 if ("next".equals(method.getName())) {
                     return recordProxy;
@@ -112,6 +159,9 @@ public class AuthIntegrationTest {
                 return null;
             }
         );
+    }
+
+    private record TestUser(String email, String passwordHash) {
     }
 
     @Test
@@ -129,7 +179,51 @@ public class AuthIntegrationTest {
             .statusCode(201)
             .body(containsString("Usuario registrado con éxito"));
 
-        // 2. Login exitoso (200 y devuelve token)
+        // 2. El username debe ser único
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"" + testUser + "\",\"email\":\"otro@test.com\",\"password\":\"" + testPassword + "\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(409)
+            .body("code", equalTo("USERNAME_ALREADY_EXISTS"))
+            .body("field", equalTo("username"));
+
+        // 3. El correo debe ser único
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"otro_usuario\",\"email\":\"said@test.com\",\"password\":\"" + testPassword + "\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(409)
+            .body("code", equalTo("EMAIL_ALREADY_EXISTS"))
+            .body("field", equalTo("email"));
+
+        // 4. La contraseña debe tener al menos 8 caracteres
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"usuario_corto\",\"email\":\"corto@test.com\",\"password\":\"1234567\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(400)
+            .body("code", equalTo("INVALID_REGISTRATION"))
+            .body("field", equalTo("password"));
+
+        // 5. El correo debe tener una estructura válida
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"correo_invalido\",\"email\":\"usuario@@test.com\",\"password\":\"" + testPassword + "\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(400)
+            .body("code", equalTo("INVALID_REGISTRATION"))
+            .body("field", equalTo("email"));
+
+        // 6. Login exitoso (200 y devuelve token)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"" + testUser + "\",\"password\":\"" + testPassword + "\"}")
@@ -139,31 +233,58 @@ public class AuthIntegrationTest {
             .statusCode(200)
             .body(containsString("token"));
 
-        // 3. Login fallido por contraseña incorrecta (401)
+        // 7. Login fallido por contraseña incorrecta (401)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"" + testUser + "\",\"password\":\"clave_incorrecta\"}")
         .when()
             .post("/api/auth/login")
         .then()
-            .statusCode(401);
+            .statusCode(401)
+            .body("code", equalTo("INVALID_CREDENTIALS"));
 
-        // 4. Login fallido por usuario inexistente (401)
+        // 8. Login fallido por usuario inexistente (401)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"no_existe\",\"password\":\"password123\"}")
         .when()
             .post("/api/auth/login")
         .then()
-            .statusCode(401);
+            .statusCode(401)
+            .body("code", equalTo("INVALID_CREDENTIALS"));
 
-        // 5. Registro fallido por error de base de datos (500)
+        // 9. Registro fallido por error de base de datos (500)
         given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"error_db\",\"email\":\"error@test.com\",\"password\":\"password123\"}")
         .when()
             .post("/api/auth/register")
         .then()
-            .statusCode(500);
+            .statusCode(500)
+            .body("code", equalTo("REGISTRATION_FAILED"));
+
+        // 10. Un conflicto concurrente de username también debe responder 409
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"" + CONCURRENT_USERNAME
+                    + "\",\"email\":\"otro-concurrente@test.com\",\"password\":\"password123\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(409)
+            .body("code", equalTo("USERNAME_ALREADY_EXISTS"))
+            .body("field", equalTo("username"));
+
+        // 11. Un conflicto concurrente de email también debe responder 409
+        given()
+            .contentType(ContentType.JSON)
+            .body("{\"username\":\"usuario_email_concurrente\",\"email\":\""
+                    + CONCURRENT_EMAIL + "\",\"password\":\"password123\"}")
+        .when()
+            .post("/api/auth/register")
+        .then()
+            .statusCode(409)
+            .body("code", equalTo("EMAIL_ALREADY_EXISTS"))
+            .body("field", equalTo("email"));
     }
 }

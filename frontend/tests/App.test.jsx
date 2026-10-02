@@ -1,40 +1,74 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import App from '../src/App.jsx'
+import AuthProvider from '../src/context/AuthProvider.jsx'
+import { AUTH_STORAGE_KEY } from '../src/context/authStorage.js'
 
 const routes = [
-  { path: '/login', heading: 'Iniciar sesión' },
-  { path: '/registro', heading: 'Crear una cuenta' },
-  { path: '/feed', heading: 'Feed' },
-  { path: '/perfil', heading: 'Perfil' },
+  { path: '/login', heading: 'Iniciar sesión', level: 2 },
+  { path: '/registro', heading: 'Crear cuenta', level: 2 },
+  { path: '/perfil', heading: 'Perfil', level: 1 },
 ]
 
-describe.each(routes)('ruta $path', ({ heading, path }) => {
-  it('muestra la página provisional correspondiente', () => {
-    render(
-      <MemoryRouter initialEntries={[path]}>
+function renderApp(path) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <AuthProvider>
         <App />
-      </MemoryRouter>,
-    )
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+}
+
+afterEach(() => {
+  localStorage.clear()
+})
+
+describe.each(routes)('ruta $path', ({ heading, level, path }) => {
+  it('muestra la página correspondiente', () => {
+    renderApp(path)
 
     expect(
-      screen.getByRole('heading', { level: 1, name: heading }),
+      screen.getByRole('heading', { level, name: heading }),
     ).toBeInTheDocument()
   })
 })
 
+it('protege el feed cuando no existe una sesión', async () => {
+  renderApp('/feed')
+
+  expect(
+    await screen.findByRole('heading', { level: 2, name: 'Iniciar sesión' }),
+  ).toBeInTheDocument()
+})
+
+it('muestra el destino protegido y permite cerrar sesión', async () => {
+  localStorage.setItem(
+    AUTH_STORAGE_KEY,
+    JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+  )
+  renderApp('/feed')
+
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Hola, @oscar' }),
+  ).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+
+  expect(
+    await screen.findByRole('heading', { level: 2, name: 'Iniciar sesión' }),
+  ).toBeInTheDocument()
+  expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+})
+
 describe.each(['/', '/ruta-inexistente'])('redirección desde %s', (path) => {
   it('envía al usuario a la página de inicio de sesión', async () => {
-    render(
-      <MemoryRouter initialEntries={[path]}>
-        <App />
-      </MemoryRouter>,
-    )
+    renderApp(path)
 
     expect(
       await screen.findByRole('heading', {
-        level: 1,
+        level: 2,
         name: 'Iniciar sesión',
       }),
     ).toBeInTheDocument()
