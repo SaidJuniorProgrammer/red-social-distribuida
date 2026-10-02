@@ -1,0 +1,101 @@
+// ============================================================
+// 03-consultas.cypher — Consultas Cypher no triviales (5+) + escritura del grafo
+// Consultas de LECTURA (1-7) y de ESCRITURA del grafo social (8 seguir, 9 dejar de seguir).
+// La actividad exige mínimo 5 no triviales, y al menos una que recorra
+// relaciones de MÁS de un nivel (la #4 y #6 lo hacen).
+// Convención: snake_case, alineado con docs/CONTRATOS.md
+// Reemplaza $miId / $idDestino / $otroId por ids reales (ej. 'u1') al probar.
+// ============================================================
+
+// ------------------------------------------------------------
+// 1) SEGUIDORES de un usuario
+//    (quién apunta hacia mí con SIGUE)
+// ------------------------------------------------------------
+MATCH (seguidor:Usuario)-[:SIGUE]->(yo:Usuario {id_usuario: $miId})
+RETURN seguidor.username AS seguidor
+ORDER BY seguidor;
+
+// ------------------------------------------------------------
+// 2) USUARIOS SEGUIDOS
+//    (a quién sigo yo)
+// ------------------------------------------------------------
+MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE]->(seguido:Usuario)
+RETURN seguido.username AS seguido
+ORDER BY seguido;
+
+// ------------------------------------------------------------
+// 3) FEED PERSONALIZADO
+//    Posts SOLO de los usuarios que sigo, ordenados por fecha.
+//    (no es "todos los posts del sistema")
+// ------------------------------------------------------------
+// Devuelve los campos del contrato GET /api/feed (id_post, autor, texto, media_url).
+// Se agrupa por p.id_post (único) para que cada publicación sea UNA fila y las
+// reacciones no se mezclen entre posts con mismo texto/fecha.
+MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE]->(autor:Usuario)-[:PUBLICA]->(p:Post)
+OPTIONAL MATCH (p)<-[r:REACCIONA]-()
+RETURN p.id_post            AS id_post,
+       autor.username       AS autor,
+       p.texto              AS texto,
+       p.media_url          AS media_url,
+       p.fecha_publicacion  AS fecha_publicacion,
+       count(r)             AS reacciones
+ORDER BY p.fecha_publicacion DESC
+LIMIT 20;
+
+// ------------------------------------------------------------
+// 4) RECOMENDACIÓN DE USUARIOS  (recorre 2 niveles del grafo)
+//    "A quién seguir": personas seguidas por la gente que yo sigo,
+//    que aún no sigo. Se ordenan por nº de conexiones en común.
+// ------------------------------------------------------------
+MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE]->(intermedio:Usuario)-[:SIGUE]->(sugerido:Usuario)
+WHERE sugerido <> yo AND NOT (yo)-[:SIGUE]->(sugerido)
+RETURN sugerido.username           AS recomendado,
+       count(DISTINCT intermedio)  AS conexiones_en_comun
+ORDER BY conexiones_en_comun DESC, recomendado
+LIMIT 5;
+
+// ------------------------------------------------------------
+// 5) SEGUIDOS EN COMÚN entre dos usuarios
+//    (recorre relaciones desde dos puntos y las cruza)
+// ------------------------------------------------------------
+MATCH (a:Usuario {id_usuario: $miId})-[:SIGUE]->(comun:Usuario)<-[:SIGUE]-(b:Usuario {id_usuario: $otroId})
+RETURN comun.username AS seguido_en_comun;
+
+// ------------------------------------------------------------
+// 6) (EXTRA) ALCANCE DE LA RED: usuarios alcanzables por SIGUE
+//    a 1..3 saltos. Camino variable = imposible de forma natural en SQL.
+// ------------------------------------------------------------
+MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE*1..3]->(alcanzado:Usuario)
+WHERE alcanzado <> yo
+RETURN DISTINCT alcanzado.username AS en_mi_red;
+
+// ------------------------------------------------------------
+// 7) (EXTRA) MUTUALIDAD: ¿quién me sigue de vuelta?
+// ------------------------------------------------------------
+MATCH (yo:Usuario {id_usuario: $miId})-[:SIGUE]->(otro:Usuario)
+WHERE (otro)-[:SIGUE]->(yo)
+RETURN otro.username AS se_siguen_mutuamente;
+
+// ============================================================
+// ESCRITURA DEL GRAFO SOCIAL
+// ============================================================
+
+// ------------------------------------------------------------
+// 8) SEGUIR a un usuario
+//    MERGE evita relaciones SIGUE duplicadas (idempotente).
+//    ON CREATE guarda la fecha solo la primera vez.
+//    El WHERE impide que alguien se siga a sí mismo.
+// ------------------------------------------------------------
+MATCH (a:Usuario {id_usuario: $miId}), (b:Usuario {id_usuario: $idDestino})
+WHERE a <> b
+MERGE (a)-[r:SIGUE]->(b)
+  ON CREATE SET r.desde = datetime()
+RETURN a.username AS sigo_ahora_a, b.username AS seguido;
+
+// ------------------------------------------------------------
+// 9) DEJAR DE SEGUIR a un usuario
+//    Borra únicamente la relación SIGUE, no los nodos.
+// ------------------------------------------------------------
+MATCH (a:Usuario {id_usuario: $miId})-[r:SIGUE]->(b:Usuario {id_usuario: $idDestino})
+DELETE r
+RETURN a.username AS dejo_de_seguir_a, b.username AS ex_seguido;
