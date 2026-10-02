@@ -18,7 +18,7 @@ services:
     ports:
       - "9090:9090" # Puerto HTTP para que se conecte Quarkus
     environment:
-      - initialBuckets=red-social-bucket # ¡Crea el bucket por ti!
+      - COM_ADOBE_TESTING_S3MOCK_STORE_INITIALBUCKETS=red-social-media # Bucket para las imágenes de publicaciones (issue #13); s3mock lo crea al arrancar
 
 volumes:
   neo4j_data:
