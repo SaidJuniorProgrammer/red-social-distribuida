@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import BrandMark from '../components/BrandMark.jsx'
 import useAuth from '../hooks/useAuth.js'
 
@@ -9,10 +10,10 @@ function FeedPage() {
       <aside className="app-sidebar">
         <BrandMark />
         <nav aria-label="Navegación principal">
-          <a className="app-sidebar__active" href="/feed">Inicio</a>
+          <Link className="app-sidebar__active" to="/feed">Inicio</Link>
           <span>Explorar</span>
           <span>Notificaciones</span>
-          <span>Mensajes</span>
+          <Link to="/chat">Mensajes</Link>
           <span>Perfil</span>
         </nav>
         <button className="primary-button" type="button" disabled>Publicar</button>
