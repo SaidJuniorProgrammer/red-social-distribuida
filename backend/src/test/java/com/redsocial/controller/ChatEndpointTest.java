@@ -9,6 +9,7 @@ import jakarta.websocket.OnMessage;
 import jakarta.websocket.Session;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -48,6 +49,12 @@ class ChatEndpointTest {
              Session sesionSaid = ContainerProvider.getWebSocketContainer()
                 .connectToServer(ClientePruebaSocket.class, uriSaid)) {
 
+            // Esperar a que los hilos de Vert.x completen @OnOpen para ambas sesiones
+            long limiteApertura = System.currentTimeMillis() + 5000;
+            while (chatEndpoint.obtenerTotalSesionesActivas() < 2 && System.currentTimeMillis() < limiteApertura) {
+                Thread.sleep(25);
+            }
+
             assertTrue(chatEndpoint.obtenerTotalSesionesActivas() >= 2);
 
             // 1. Envío de mensaje válido con todos los campos del contrato
@@ -80,13 +87,33 @@ class ChatEndpointTest {
             assertTrue(recibido2.contains("said"));
         }
 
-        // 3. Casos borde directos para cubrir validaciones y manejo de errores
+        // Esperar a que los hilos de Vert.x completen @OnClose al cerrar el bloque try
+        long limiteCierre = System.currentTimeMillis() + 5000;
+        while (chatEndpoint.obtenerTotalSesionesActivas() > 0 && System.currentTimeMillis() < limiteCierre) {
+            Thread.sleep(25);
+        }
+
+        // 3. Casos borde directos para cubrir todas las ramas en SonarCloud
+        Session sesionCerradaMock = (Session) Proxy.newProxyInstance(
+                Session.class.getClassLoader(),
+                new Class[]{Session.class},
+                (proxy, method, args) -> "isOpen".equals(method.getName()) ? false : null
+        );
+
+        chatEndpoint.onOpen(sesionCerradaMock, "inactivo");
+        chatEndpoint.onMessage("{\"destinatario_id\": \"inactivo\", \"contenido\": \"hola\"}", "said");
+        chatEndpoint.onClose(sesionCerradaMock, "inactivo");
+
+        chatEndpoint.onOpen(null, null);
         chatEndpoint.onOpen(null, "   ");
+        chatEndpoint.onMessage("{\"destinatario_id\": null, \"contenido\": \"hola\"}", "said");
         chatEndpoint.onMessage("{\"destinatario_id\": \"\", \"contenido\": \"hola\"}", "said");
+        chatEndpoint.onMessage("{\"destinatario_id\": \"oscar\", \"contenido\": null}", "said");
         chatEndpoint.onMessage("{\"destinatario_id\": \"oscar\", \"contenido\": \"   \"}", "said");
-        chatEndpoint.onMessage("{\"destinatario_id\": \"usuario_desconectado\", \"contenido\": \"hola\"}", "said");
+        chatEndpoint.onMessage("{\"emisor_id\": \"   \", \"destinatario_id\": \"usuario_desconectado\", \"contenido\": \"hola\", \"timestamp\": \"   \"}", "said");
         chatEndpoint.onMessage("{json_malformado", "said");
         chatEndpoint.onError(null, "said", new RuntimeException("Error simulado de WebSocket"));
+        chatEndpoint.onError(null, null, new RuntimeException("Error sin usuario"));
         chatEndpoint.onClose(null, null);
 
         assertEquals(0, chatEndpoint.obtenerTotalSesionesActivas());
