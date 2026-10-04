@@ -110,10 +110,13 @@ export class ChatWebSocketClient {
     this.socket = socket
 
     socket.onopen = () => {
+      if (this.socket !== socket) return
       this.onStatusChange?.(CHAT_CONNECTION_STATUS.connected)
     }
 
     socket.onmessage = ({ data }) => {
+      if (this.socket !== socket) return
+
       try {
         this.onMessage?.(parseChatMessage(data))
       } catch {
@@ -125,6 +128,8 @@ export class ChatWebSocketClient {
     }
 
     socket.onerror = () => {
+      if (this.socket !== socket) return
+
       this.onStatusChange?.(
         CHAT_CONNECTION_STATUS.error,
         'No se pudo mantener la conexión del chat.',

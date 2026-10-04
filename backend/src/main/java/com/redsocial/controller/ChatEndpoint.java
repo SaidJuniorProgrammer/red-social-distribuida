@@ -35,10 +35,16 @@ public class ChatEndpoint {
     SecurityIdentity securityIdentity;
 
     @OnOpen
-    public void onOpen(WebSocketConnection connection) {
+    public Uni<Void> onOpen(WebSocketConnection connection) {
         String username = usernameAutenticado();
-        sesiones.put(username, connection);
+        WebSocketConnection sesionAnterior = sesiones.put(username, connection);
         LOG.infof("Usuario conectado al chat: %s", username);
+
+        if (sesionAnterior != null && !sesionAnterior.equals(connection)) {
+            return sesionAnterior.close();
+        }
+
+        return Uni.createFrom().voidItem();
     }
 
     @OnClose

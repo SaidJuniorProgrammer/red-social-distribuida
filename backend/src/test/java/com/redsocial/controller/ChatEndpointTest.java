@@ -96,6 +96,18 @@ class ChatEndpointTest {
                 .connectToServer(new ClientePruebaSocket(), config, uriChat));
     }
 
+    @Test
+    void reemplazaLaSesionAnteriorDelMismoUsuario() throws Exception {
+        try (Session sesionAnterior = conectarComo("oscar");
+             Session sesionNueva = conectarComo("oscar")) {
+            esperarSesionesActivas(1);
+            esperarSesionCerrada(sesionAnterior);
+            assertTrue(sesionNueva.isOpen());
+        }
+
+        esperarSesionesActivas(0);
+    }
+
     private Session conectarComo(String username) throws Exception {
         String token = Jwt.issuer("https://redsocial.com/issuer")
                 .upn(username)
@@ -123,5 +135,13 @@ class ChatEndpointTest {
             Thread.sleep(25);
         }
         assertEquals(totalEsperado, chatEndpoint.obtenerTotalSesionesActivas());
+    }
+
+    private void esperarSesionCerrada(Session session) throws InterruptedException {
+        long limite = System.currentTimeMillis() + 5000;
+        while (session.isOpen() && System.currentTimeMillis() < limite) {
+            Thread.sleep(25);
+        }
+        assertFalse(session.isOpen());
     }
 }

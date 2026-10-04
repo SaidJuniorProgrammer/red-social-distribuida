@@ -124,4 +124,33 @@ describe('cliente WebSocket del chat', () => {
       contenido: 'Mensaje compatible',
     })
   })
+
+  it('ignora eventos tardíos de una conexión descartada', () => {
+    const statuses = []
+    const receivedMessages = []
+    const client = new ChatWebSocketClient({
+      token: 'jwt-prueba',
+      username: 'oscar',
+      WebSocketImpl: MockWebSocket,
+      onMessage: (message) => receivedMessages.push(message),
+      onStatusChange: (status) => statuses.push(status),
+    })
+
+    client.connect()
+    const discardedSocket = MockWebSocket.instances[0]
+    client.disconnect()
+    client.connect()
+    const activeSocket = MockWebSocket.instances[1]
+    activeSocket.open()
+
+    discardedSocket.receive({
+      emisor: 'said',
+      destinatario: 'oscar',
+      contenido: 'Mensaje tardío',
+    })
+    discardedSocket.onerror?.()
+
+    expect(receivedMessages).toEqual([])
+    expect(statuses.at(-1)).toBe(CHAT_CONNECTION_STATUS.connected)
+  })
 })
