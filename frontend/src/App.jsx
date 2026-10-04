@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import AppLayout from './components/AppLayout.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ChatPage from './pages/ChatPage.jsx'
 import FeedPage from './pages/FeedPage.jsx'
@@ -13,22 +14,16 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/registro" element={<RegisterPage />} />
       <Route
-        path="/feed"
         element={
           <ProtectedRoute>
-            <FeedPage />
+            <AppLayout />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/chat"
-        element={
-          <ProtectedRoute>
-            <ChatPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/perfil" element={<ProfilePage />} />
+      >
+        <Route path="/feed" element={<FeedPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/perfil" element={<ProfilePage />} />
+      </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )

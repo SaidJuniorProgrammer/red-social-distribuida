@@ -2,93 +2,105 @@ package com.redsocial.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redsocial.dto.ChatMessage;
+import io.quarkus.security.Authenticated;
+import io.quarkus.security.identity.SecurityIdentity;
+import io.quarkus.websockets.next.OnClose;
+import io.quarkus.websockets.next.OnError;
+import io.quarkus.websockets.next.OnOpen;
+import io.quarkus.websockets.next.OnTextMessage;
+import io.quarkus.websockets.next.WebSocket;
+import io.quarkus.websockets.next.WebSocketConnection;
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.websocket.OnClose;
-import jakarta.websocket.OnError;
-import jakarta.websocket.OnMessage;
-import jakarta.websocket.OnOpen;
-import jakarta.websocket.Session;
-import jakarta.websocket.server.PathParam;
-import jakarta.websocket.server.ServerEndpoint;
 import org.jboss.logging.Logger;
 
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@ServerEndpoint("/chat/{username}")
+@Authenticated
+@WebSocket(path = "/chat")
 @ApplicationScoped
 public class ChatEndpoint {
 
     private static final Logger LOG = Logger.getLogger(ChatEndpoint.class);
 
-    private final Map<String, Session> sesiones = new ConcurrentHashMap<>();
+    private final Map<String, WebSocketConnection> sesiones = new ConcurrentHashMap<>();
 
     @Inject
     ObjectMapper objectMapper;
 
+    @Inject
+    SecurityIdentity securityIdentity;
+
     @OnOpen
-    public void onOpen(Session session, @PathParam("username") String username) {
-        if (username != null && !username.isBlank()) {
-            sesiones.put(username.trim(), session);
-            LOG.infof("Usuario conectado al chat: %s", username.trim());
+    public Uni<Void> onOpen(WebSocketConnection connection) {
+        String username = usernameAutenticado();
+        WebSocketConnection sesionAnterior = sesiones.put(username, connection);
+        LOG.infof("Usuario conectado al chat: %s", username);
+
+        if (sesionAnterior != null && !sesionAnterior.equals(connection)) {
+            return sesionAnterior.close();
         }
+
+        return Uni.createFrom().voidItem();
     }
 
     @OnClose
-    public void onClose(Session session, @PathParam("username") String username) {
-        if (username != null) {
-            sesiones.remove(username.trim(), session);
-            LOG.infof("Usuario desconectado del chat: %s", username.trim());
-        }
+    public void onClose(WebSocketConnection connection) {
+        eliminarSesion(connection);
     }
 
     @OnError
-    public void onError(Session session, @PathParam("username") String username, Throwable throwable) {
-        if (username != null) {
-            sesiones.remove(username.trim(), session);
-        }
-        LOG.errorf(throwable, "Error en la sesión de chat del usuario: %s", username);
+    public void onError(Throwable throwable, WebSocketConnection connection) {
+        eliminarSesion(connection);
+        LOG.error("Error en una sesión autenticada del chat", throwable);
     }
 
-    @OnMessage
-    public void onMessage(String rawMessage, @PathParam("username") String username) {
+    @OnTextMessage
+    public Uni<Void> onMessage(String rawMessage) {
         try {
             ChatMessage entrante = objectMapper.readValue(rawMessage, ChatMessage.class);
 
             if (entrante.destinatario_id() == null || entrante.destinatario_id().isBlank()
                     || entrante.contenido() == null || entrante.contenido().isBlank()) {
-                return;
+                return Uni.createFrom().voidItem();
             }
-
-            String emisor = (entrante.emisor_id() == null || entrante.emisor_id().isBlank())
-                    ? username.trim()
-                    : entrante.emisor_id().trim();
 
             String fecha = (entrante.timestamp() == null || entrante.timestamp().isBlank())
                     ? Instant.now().toString()
                     : entrante.timestamp().trim();
 
             ChatMessage mensajeNormalizado = new ChatMessage(
-                    emisor,
+                    usernameAutenticado(),
                     entrante.destinatario_id().trim(),
                     entrante.contenido().trim(),
                     fecha
             );
 
-            String payloadJson = objectMapper.writeValueAsString(mensajeNormalizado);
-
-            Session sesionDestinatario = sesiones.get(mensajeNormalizado.destinatario_id());
-            if (sesionDestinatario != null && sesionDestinatario.isOpen()) {
-                sesionDestinatario.getAsyncRemote().sendText(payloadJson);
+            WebSocketConnection sesionDestinatario = sesiones.get(mensajeNormalizado.destinatario_id());
+            if (sesionDestinatario == null) {
+                return Uni.createFrom().voidItem();
             }
-        } catch (Exception e) {
-            LOG.error("No se pudo procesar ni rutear el mensaje de chat", e);
+
+            String payloadJson = objectMapper.writeValueAsString(mensajeNormalizado);
+            return sesionDestinatario.sendText(payloadJson);
+        } catch (Exception exception) {
+            LOG.error("No se pudo procesar ni rutear el mensaje de chat", exception);
+            return Uni.createFrom().voidItem();
         }
     }
 
     public int obtenerTotalSesionesActivas() {
         return sesiones.size();
+    }
+
+    private String usernameAutenticado() {
+        return securityIdentity.getPrincipal().getName();
+    }
+
+    private void eliminarSesion(WebSocketConnection connection) {
+        sesiones.entrySet().removeIf(entry -> entry.getValue().equals(connection));
     }
 }

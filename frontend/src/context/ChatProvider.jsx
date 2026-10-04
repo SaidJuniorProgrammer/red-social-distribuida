@@ -9,7 +9,7 @@ import ChatContext from './chatContext.js'
 const RECONNECT_DELAY = 2_000
 
 function ChatProvider({ children }) {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, token, user } = useAuth()
   const [messages, setMessages] = useState([])
   const [status, setStatus] = useState(CHAT_CONNECTION_STATUS.disconnected)
   const [connectionError, setConnectionError] = useState('')
@@ -26,6 +26,7 @@ function ChatProvider({ children }) {
 
     const connect = () => {
       const client = new ChatWebSocketClient({
+        token,
         username: user.username,
         onMessage: (message) => {
           setMessages((currentMessages) =>
@@ -36,7 +37,9 @@ function ChatProvider({ children }) {
         },
         onStatusChange: (nextStatus, errorMessage = '') => {
           setStatus(nextStatus)
-          setConnectionError(errorMessage)
+          if (errorMessage || nextStatus === CHAT_CONNECTION_STATUS.connected) {
+            setConnectionError(errorMessage)
+          }
 
           if (
             nextStatus === CHAT_CONNECTION_STATUS.disconnected &&
@@ -71,7 +74,7 @@ function ChatProvider({ children }) {
       setMessages([])
       setConnectionError('')
     }
-  }, [isAuthenticated, user?.username])
+  }, [isAuthenticated, token, user?.username])
 
   const sendMessage = useCallback((recipient, content) => {
     const normalizedRecipient = recipient.trim()
