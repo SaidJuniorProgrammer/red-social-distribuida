@@ -25,10 +25,20 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const destination = new URL(
-    event.notification.data?.url ?? '/feed',
-    self.location.origin,
-  ).href
+  const fallbackDestination = new URL('/feed', self.location.origin)
+  let destination = fallbackDestination.href
+
+  try {
+    const requestedDestination = new URL(
+      event.notification.data?.url ?? '/feed',
+      self.location.origin,
+    )
+    if (requestedDestination.origin === self.location.origin) {
+      destination = requestedDestination.href
+    }
+  } catch {
+    destination = fallbackDestination.href
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })

@@ -213,7 +213,7 @@ a { color: inherit; }
   .app-layout__content { padding-bottom: 4rem; }
   .messages-sidebar { position: fixed; z-index: 20; inset: auto 0 0; width: 100%; height: auto; min-height: 0; display: block; padding: .45rem .75rem max(.45rem, env(safe-area-inset-bottom)); border-top: 1px solid #e4dcf1; border-right: 0; box-shadow: 0 -.5rem 1.5rem rgb(59 35 90 / 8%); }
   .messages-sidebar__brand, .messages-sidebar__item, .messages-sidebar__post, .messages-profile { display: none; }
-  .messages-sidebar nav { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+  .messages-sidebar nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; }
   .messages-sidebar nav a { min-height: 3rem; justify-content: center; gap: .4rem; padding: .55rem .35rem; font-size: .72rem; }
   .messages-sidebar__icon { width: auto; }
   .messages-layout { grid-template-columns: 1fr; }

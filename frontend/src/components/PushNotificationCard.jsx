@@ -14,7 +14,7 @@ const PUSH_STATE = Object.freeze({
   unsupported: 'unsupported',
 })
 
-function PushNotificationCard({ username }) {
+function PushNotificationCard() {
   const [state, setState] = useState(PUSH_STATE.checking)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -53,7 +53,7 @@ function PushNotificationCard({ username }) {
     setErrorMessage('')
 
     try {
-      await subscribeUserToPush(username)
+      await subscribeUserToPush()
       setState(PUSH_STATE.active)
     } catch (error) {
       setState(

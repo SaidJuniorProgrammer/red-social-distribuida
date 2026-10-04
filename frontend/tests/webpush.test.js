@@ -75,13 +75,12 @@ describe('suscripción Web Push', () => {
     vi.spyOn(api, 'get').mockResolvedValue({ data: { publicKey: 'AQIDBA' } })
     vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
 
-    await expect(subscribeUserToPush(' oscar ')).resolves.toBe(newSubscription)
+    await expect(subscribeUserToPush()).resolves.toBe(newSubscription)
     expect(subscribe).toHaveBeenCalledWith({
       userVisibleOnly: true,
       applicationServerKey: new Uint8Array([1, 2, 3, 4]),
     })
     expect(api.post).toHaveBeenCalledWith('/push/subscribe', {
-      usuario: 'oscar',
       endpoint: 'https://push.example/oscar',
       keys: { p256dh: 'publica', auth: 'secreta' },
     })
@@ -90,36 +89,27 @@ describe('suscripción Web Push', () => {
   it('reutiliza una suscripción existente sin pedir otra llave', async () => {
     const existingSubscription = {
       endpoint: 'https://push.example/existing',
-      toJSON: () => ({}),
+      toJSON: () => ({ keys: { p256dh: 'publica', auth: 'secreta' } }),
     }
     installPushMocks({ subscription: existingSubscription })
     const getPublicKey = vi.spyOn(api, 'get')
     vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
 
-    await expect(subscribeUserToPush('oscar')).resolves.toBe(
+    await expect(subscribeUserToPush()).resolves.toBe(
       existingSubscription,
     )
     expect(getPublicKey).not.toHaveBeenCalled()
     expect(api.post).toHaveBeenCalledWith('/push/subscribe', {
-      usuario: 'oscar',
       endpoint: 'https://push.example/existing',
-      keys: {},
+      keys: { p256dh: 'publica', auth: 'secreta' },
     })
-  })
-
-  it('requiere un usuario válido para registrar la suscripción', async () => {
-    installPushMocks()
-
-    await expect(subscribeUserToPush('   ')).rejects.toThrow(
-      'No se pudo identificar al usuario',
-    )
   })
 
   it('no intenta suscribir cuando el permiso fue rechazado', async () => {
     installPushMocks({ permission: 'denied' })
     const getPublicKey = vi.spyOn(api, 'get')
 
-    await expect(subscribeUserToPush('oscar')).rejects.toThrow(
+    await expect(subscribeUserToPush()).rejects.toThrow(
       'Debes permitir las notificaciones',
     )
     expect(getPublicKey).not.toHaveBeenCalled()

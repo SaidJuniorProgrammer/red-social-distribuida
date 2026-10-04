@@ -1,4 +1,3 @@
-import PushNotificationCard from '../components/PushNotificationCard.jsx'
 import useAuth from '../hooks/useAuth.js'
 
 function FeedPage() {
@@ -20,7 +19,6 @@ function FeedPage() {
           Las publicaciones se incorporarán en el issue correspondiente.
         </p>
       </section>
-      <PushNotificationCard username={user?.username} />
     </main>
   )
 }

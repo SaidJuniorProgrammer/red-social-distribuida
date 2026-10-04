@@ -30,14 +30,9 @@ export async function getCurrentPushSubscription() {
   return registration.pushManager.getSubscription()
 }
 
-export async function subscribeUserToPush(username) {
+export async function subscribeUserToPush() {
   if (!isWebPushSupported()) {
     throw new Error('Este navegador no admite notificaciones web.')
-  }
-
-  const normalizedUsername = username?.trim()
-  if (!normalizedUsername) {
-    throw new Error('No se pudo identificar al usuario de la sesión.')
   }
 
   const permission = Notification.permission === 'default'
@@ -61,7 +56,6 @@ export async function subscribeUserToPush(username) {
 
   const subscriptionData = subscription.toJSON()
   await api.post('/push/subscribe', {
-    usuario: normalizedUsername,
     endpoint: subscription.endpoint,
     keys: subscriptionData.keys ?? {},
   })

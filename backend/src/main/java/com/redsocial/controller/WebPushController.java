@@ -4,6 +4,8 @@ import com.redsocial.dto.ApiErrorResponse;
 import com.redsocial.dto.ApiMessageResponse;
 import com.redsocial.dto.PushSubscriptionRequest;
 import com.redsocial.service.WebPushService;
+import io.quarkus.security.Authenticated;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -25,6 +27,9 @@ public class WebPushController {
     @Inject
     WebPushService webPushService;
 
+    @Inject
+    SecurityIdentity securityIdentity;
+
     @GET
     @Path("/vapid-public-key")
     public Response obtenerVapidPublicKey() {
@@ -33,15 +38,27 @@ public class WebPushController {
 
     @POST
     @Path("/subscribe")
+    @Authenticated
     public Response suscribir(PushSubscriptionRequest request) {
-        if (request == null || request.usuario() == null || request.usuario().isBlank()
-                || request.endpoint() == null || request.endpoint().isBlank()) {
+        if (request == null || request.endpoint() == null || request.endpoint().isBlank()
+                || request.keys() == null
+                || request.keys().getOrDefault("p256dh", "").isBlank()
+                || request.keys().getOrDefault("auth", "").isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(new ApiErrorResponse("INVALID_SUBSCRIPTION", "endpoint", "El usuario y el endpoint son obligatorios."))
+                    .entity(new ApiErrorResponse(
+                            "INVALID_SUBSCRIPTION",
+                            "endpoint",
+                            "El endpoint y sus llaves son obligatorios."
+                    ))
                     .build();
         }
 
-        webPushService.registrarSuscripcion(request);
+        PushSubscriptionRequest suscripcionAutenticada = new PushSubscriptionRequest(
+                securityIdentity.getPrincipal().getName(),
+                request.endpoint().trim(),
+                request.keys()
+        );
+        webPushService.registrarSuscripcion(suscripcionAutenticada);
         return Response.status(Response.Status.CREATED)
                 .entity(new ApiMessageResponse("Suscripción Web Push registrada exitosamente"))
                 .build();
@@ -49,7 +66,12 @@ public class WebPushController {
 
     @DELETE
     @Path("/subscribe/{usuario}")
+    @Authenticated
     public Response cancelarSuscripcion(@PathParam("usuario") String usuario) {
+        if (!esUsuarioAutenticado(usuario)) {
+            return accesoDenegado();
+        }
+
         boolean eliminado = webPushService.eliminarSuscripcion(usuario);
         if (!eliminado) {
             return Response.status(Response.Status.NOT_FOUND)
@@ -61,7 +83,27 @@ public class WebPushController {
 
     @GET
     @Path("/notificaciones/{usuario}")
+    @Authenticated
     public Response obtenerNotificaciones(@PathParam("usuario") String usuario) {
+        if (!esUsuarioAutenticado(usuario)) {
+            return accesoDenegado();
+        }
+
         return Response.ok(Map.of("notificaciones", webPushService.obtenerNotificacionesDeUsuario(usuario))).build();
+    }
+
+    private boolean esUsuarioAutenticado(String usuario) {
+        return usuario != null
+                && usuario.trim().equals(securityIdentity.getPrincipal().getName());
+    }
+
+    private Response accesoDenegado() {
+        return Response.status(Response.Status.FORBIDDEN)
+                .entity(new ApiErrorResponse(
+                        "FORBIDDEN",
+                        "usuario",
+                        "No puedes administrar las notificaciones de otra cuenta."
+                ))
+                .build();
     }
 }

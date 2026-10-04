@@ -47,7 +47,7 @@ afterEach(() => {
 
 it('activa las notificaciones a petición del usuario', async () => {
   installBrowserMocks()
-  render(<PushNotificationCard username="oscar" />)
+  render(<PushNotificationCard />)
 
   const activateButton = await screen.findByRole('button', { name: 'Activar' })
   fireEvent.click(activateButton)
@@ -62,7 +62,7 @@ it('activa las notificaciones a petición del usuario', async () => {
 it('explica cuando el navegador no admite notificaciones', async () => {
   vi.stubGlobal('Notification', undefined)
   vi.stubGlobal('PushManager', undefined)
-  render(<PushNotificationCard username="oscar" />)
+  render(<PushNotificationCard />)
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Este navegador no admite notificaciones web',
@@ -72,7 +72,7 @@ it('explica cuando el navegador no admite notificaciones', async () => {
 it('explica cómo habilitar un permiso bloqueado', async () => {
   installBrowserMocks()
   Notification.permission = 'denied'
-  render(<PushNotificationCard username="oscar" />)
+  render(<PushNotificationCard />)
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Puedes habilitarlas desde la configuración del navegador',

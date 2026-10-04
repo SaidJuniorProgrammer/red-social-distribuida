@@ -6,7 +6,7 @@ import BrandMark from './BrandMark.jsx'
 const navigationItems = [
   { icon: '⌂', label: 'Inicio', to: '/feed' },
   { icon: '#', label: 'Explorar' },
-  { icon: '♡', label: 'Notificaciones' },
+  { icon: '♡', label: 'Notificaciones', to: '/notificaciones' },
   { icon: '✉', label: 'Mensajes', to: '/chat' },
   { icon: '▣', label: 'Guardados' },
   { icon: '◎', label: 'Comunidades' },

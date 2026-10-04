@@ -34,7 +34,7 @@ describe.each(routes)('ruta $path', ({ heading, level, path }) => {
   })
 })
 
-describe.each(['/feed', '/perfil'])('ruta protegida %s', (path) => {
+describe.each(['/feed', '/notificaciones', '/perfil'])('ruta protegida %s', (path) => {
   it('regresa al inicio de sesión cuando no existe una sesión', async () => {
     renderApp(path)
 
@@ -42,6 +42,21 @@ describe.each(['/feed', '/perfil'])('ruta protegida %s', (path) => {
       await screen.findByRole('heading', { level: 2, name: 'Iniciar sesión' }),
     ).toBeInTheDocument()
   })
+})
+
+it('muestra las notificaciones dentro del mismo layout protegido', () => {
+  localStorage.setItem(
+    AUTH_STORAGE_KEY,
+    JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+  )
+  renderApp('/notificaciones')
+
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Notificaciones' }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('link', { name: 'Notificaciones' }),
+  ).toHaveAttribute('aria-current', 'page')
 })
 
 it('muestra el destino protegido y permite cerrar sesión', async () => {
