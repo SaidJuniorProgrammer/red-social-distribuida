@@ -85,12 +85,14 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
   fireEvent.change(screen.getByLabelText('Enviar mensajes a'), {
     target: { value: 'said' },
   })
+  fireEvent.click(screen.getByRole('button', { name: /Said.*@said/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Volver a conversaciones' }))
   fireEvent.change(screen.getByLabelText('Mensaje'), {
     target: { value: 'Hola desde React' },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
-  expect(screen.getByText('Hola desde React')).toBeInTheDocument()
+  expect(screen.getAllByText('Hola desde React')).not.toHaveLength(0)
   expect(JSON.parse(socket.sentMessages[0])).toMatchObject({
     emisor_id: 'oscar',
     destinatario_id: 'said',
@@ -106,8 +108,29 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
     })
   })
 
-  expect(screen.getByText('Recibido en tiempo real')).toBeInTheDocument()
-  expect(screen.getByText('@said')).toBeInTheDocument()
+  expect(screen.getAllByText('Recibido en tiempo real')).not.toHaveLength(0)
+  expect(screen.getAllByText('@said')).not.toHaveLength(0)
+
+  fireEvent.click(screen.getByRole('button', { name: 'Nueva conversación' }))
+  expect(screen.getByLabelText('Enviar mensajes a')).toHaveValue('')
+  fireEvent.change(screen.getByLabelText('Enviar mensajes a'), {
+    target: { value: 'said' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: /Said.*@said/ }))
+  fireEvent.change(screen.getByLabelText('Mensaje'), {
+    target: { value: 'Enviado con Enter' },
+  })
+  fireEvent.keyDown(screen.getByLabelText('Mensaje'), {
+    key: 'Enter',
+    shiftKey: true,
+  })
+  expect(socket.sentMessages).toHaveLength(1)
+  fireEvent.keyDown(screen.getByLabelText('Mensaje'), { key: 'Enter' })
+
+  expect(JSON.parse(socket.sentMessages[1])).toMatchObject({
+    destinatario_id: 'said',
+    contenido: 'Enviado con Enter',
+  })
 
   fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
   expect(socket.closeArgs).toEqual([1000, 'Sesión finalizada'])
