@@ -55,6 +55,12 @@ function ChatPage() {
   const activeRecipient = recipient.trim()
   const isConnected = status === CHAT_CONNECTION_STATUS.connected
   const statusLabel = statusLabels[status] ?? 'Sin conexión'
+  const newestMessage = messages.at(-1)
+  const messageAnnouncement = newestMessage &&
+    newestMessage.emisor !== user?.username &&
+    newestMessage.emisor !== activeRecipient
+    ? `Nuevo mensaje de @${newestMessage.emisor}: ${newestMessage.contenido}`
+    : ''
 
   const conversations = useMemo(() => {
     const conversationsByUsername = new Map()
@@ -65,6 +71,7 @@ function ChatPage() {
         : message.emisor
 
       if (username) {
+        conversationsByUsername.delete(username)
         conversationsByUsername.set(username, {
           lastMessage: message,
           username,
@@ -107,9 +114,20 @@ function ChatPage() {
   }
 
   const selectConversation = (username) => {
+    if (username !== activeRecipient) {
+      setContent('')
+    }
     setRecipient(username)
     setSendError('')
     setIsMobileChatOpen(true)
+  }
+
+  const changeRecipient = (nextRecipient) => {
+    if (nextRecipient.trim() !== activeRecipient) {
+      setContent('')
+    }
+    setRecipient(nextRecipient)
+    setSendError('')
   }
 
   const submitMessage = () => {
@@ -214,10 +232,7 @@ function ChatPage() {
               value={recipient}
               placeholder="nombre_de_usuario"
               autoComplete="off"
-              onChange={({ target }) => {
-                setRecipient(target.value)
-                setSendError('')
-              }}
+              onChange={({ target }) => changeRecipient(target.value)}
             />
           </div>
         </div>
@@ -256,6 +271,9 @@ function ChatPage() {
             </button>
           ))}
         </div>
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {messageAnnouncement}
+        </p>
 
         <footer className="conversation-list__footer">
           <span className={`connection-dot connection-dot--${status}`} aria-hidden="true" />

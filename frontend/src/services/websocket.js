@@ -1,8 +1,14 @@
 const DEFAULT_WEBSOCKET_BASE_URL = 'ws://localhost:8080'
+const AUTH_SUBPROTOCOL = 'bearer-token-carrier'
+let fallbackMessageId = 0
 
 function createMessageId() {
-  return globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID()
+  }
+
+  fallbackMessageId += 1
+  return `${Date.now()}-${fallbackMessageId}`
 }
 
 export const CHAT_CONNECTION_STATUS = Object.freeze({
@@ -37,11 +43,20 @@ export function getWebSocketBaseUrl() {
   return DEFAULT_WEBSOCKET_BASE_URL
 }
 
-export function buildChatWebSocketUrl(
-  username,
-  baseUrl = getWebSocketBaseUrl(),
-) {
-  return `${baseUrl.replace(/\/$/, '')}/chat/${encodeURIComponent(username)}`
+export function buildChatWebSocketUrl(baseUrl = getWebSocketBaseUrl()) {
+  return `${baseUrl.replace(/\/$/, '')}/chat`
+}
+
+export function buildAuthenticationSubprotocols(token) {
+  if (!token?.trim()) {
+    throw new Error('La sesión no tiene un token válido para abrir el chat.')
+  }
+
+  const authorizationHeader = encodeURIComponent(
+    `quarkus-http-upgrade#Authorization#Bearer ${token.trim()}`,
+  )
+
+  return [AUTH_SUBPROTOCOL, authorizationHeader]
 }
 
 export function parseChatMessage(rawMessage) {
@@ -66,7 +81,8 @@ export function parseChatMessage(rawMessage) {
 }
 
 export class ChatWebSocketClient {
-  constructor({ onMessage, onStatusChange, username, WebSocketImpl }) {
+  constructor({ onMessage, onStatusChange, token, username, WebSocketImpl }) {
+    this.token = token
     this.username = username
     this.onMessage = onMessage
     this.onStatusChange = onStatusChange
@@ -88,7 +104,8 @@ export class ChatWebSocketClient {
 
     this.onStatusChange?.(CHAT_CONNECTION_STATUS.connecting)
     const socket = new this.WebSocketImpl(
-      buildChatWebSocketUrl(this.username),
+      buildChatWebSocketUrl(),
+      buildAuthenticationSubprotocols(this.token),
     )
     this.socket = socket
 
@@ -138,10 +155,7 @@ export class ChatWebSocketClient {
       timestamp: new Date().toISOString(),
     }
 
-    // La pantalla usa nombres breves, pero al enviar respetamos los nombres
-    // acordados con el servidor.
     this.socket.send(JSON.stringify({
-      emisor_id: message.emisor,
       destinatario_id: message.destinatario,
       contenido: message.contenido,
       timestamp: message.timestamp,

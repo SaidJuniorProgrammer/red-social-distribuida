@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CHAT_CONNECTION_STATUS,
   ChatWebSocketClient,
+  buildAuthenticationSubprotocols,
   buildChatWebSocketUrl,
   parseChatMessage,
 } from '../src/services/websocket.js'
@@ -12,8 +13,9 @@ class MockWebSocket {
   static CLOSED = 3
   static instances = []
 
-  constructor(url) {
+  constructor(url, protocols) {
     this.url = url
+    this.protocols = protocols
     this.readyState = MockWebSocket.CONNECTING
     this.sentMessages = []
     MockWebSocket.instances.push(this)
@@ -44,9 +46,18 @@ afterEach(() => {
 })
 
 describe('cliente WebSocket del chat', () => {
-  it('construye una ruta segura para el nombre de usuario', () => {
-    expect(buildChatWebSocketUrl('óscar demo', 'wss://api.example.test/')).toBe(
-      'wss://api.example.test/chat/%C3%B3scar%20demo',
+  it('construye la ruta y los subprotocolos de autenticación', () => {
+    expect(buildChatWebSocketUrl('wss://api.example.test/')).toBe(
+      'wss://api.example.test/chat',
+    )
+    expect(buildAuthenticationSubprotocols('jwt-prueba')).toEqual([
+      'bearer-token-carrier',
+      encodeURIComponent(
+        'quarkus-http-upgrade#Authorization#Bearer jwt-prueba',
+      ),
+    ])
+    expect(() => buildAuthenticationSubprotocols('')).toThrow(
+      'La sesión no tiene un token válido para abrir el chat.',
     )
   })
 
@@ -54,6 +65,7 @@ describe('cliente WebSocket del chat', () => {
     const statuses = []
     const receivedMessages = []
     const client = new ChatWebSocketClient({
+      token: 'jwt-prueba',
       username: 'oscar',
       WebSocketImpl: MockWebSocket,
       onMessage: (message) => receivedMessages.push(message),
@@ -72,7 +84,8 @@ describe('cliente WebSocket del chat', () => {
     })
     const sentMessage = client.sendMessage('said', 'Todo listo')
 
-    expect(socket.url).toBe('ws://localhost:8080/chat/oscar')
+    expect(socket.url).toBe('ws://localhost:8080/chat')
+    expect(socket.protocols[0]).toBe('bearer-token-carrier')
     expect(statuses).toEqual([
       CHAT_CONNECTION_STATUS.connecting,
       CHAT_CONNECTION_STATUS.connected,
@@ -87,7 +100,6 @@ describe('cliente WebSocket del chat', () => {
       },
     ])
     expect(JSON.parse(socket.sentMessages[0])).toEqual({
-      emisor_id: 'oscar',
       destinatario_id: 'said',
       contenido: 'Todo listo',
       timestamp: expect.any(String),

@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from '../src/App.jsx'
@@ -12,8 +19,9 @@ class MockWebSocket {
   static CLOSED = 3
   static instances = []
 
-  constructor(url) {
+  constructor(url, protocols) {
     this.url = url
+    this.protocols = protocols
     this.readyState = MockWebSocket.CONNECTING
     this.sentMessages = []
     MockWebSocket.instances.push(this)
@@ -30,6 +38,10 @@ class MockWebSocket {
 
   send(message) {
     this.sentMessages.push(message)
+  }
+
+  error() {
+    this.onerror?.()
   }
 
   close(code, reason) {
@@ -76,7 +88,8 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
 
   await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1))
   const socket = MockWebSocket.instances[0]
-  expect(socket.url).toBe('ws://localhost:8080/chat/oscar')
+  expect(socket.url).toBe('ws://localhost:8080/chat')
+  expect(socket.protocols[0]).toBe('bearer-token-carrier')
 
   await act(async () => socket.open())
   fireEvent.click(screen.getByRole('link', { name: 'Mensajes' }))
@@ -94,7 +107,6 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
 
   expect(screen.getAllByText('Hola desde React')).not.toHaveLength(0)
   expect(JSON.parse(socket.sentMessages[0])).toMatchObject({
-    emisor_id: 'oscar',
     destinatario_id: 'said',
     contenido: 'Hola desde React',
   })
@@ -110,6 +122,45 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
 
   expect(screen.getAllByText('Recibido en tiempo real')).not.toHaveLength(0)
   expect(screen.getAllByText('@said')).not.toHaveLength(0)
+
+  fireEvent.change(screen.getByLabelText('Mensaje'), {
+    target: { value: 'Borrador privado para Said' },
+  })
+  await act(async () => {
+    socket.receive({
+      emisor_id: 'carlos',
+      destinatario_id: 'oscar',
+      contenido: 'Mensaje de Carlos',
+      timestamp: '2026-10-01T15:31:00Z',
+    })
+  })
+
+  expect(
+    screen.getByText('Nuevo mensaje de @carlos: Mensaje de Carlos'),
+  ).toBeInTheDocument()
+  let conversationCards = within(
+    screen.getByLabelText('Conversaciones'),
+  ).getAllByRole('button').filter((button) => (
+    button.classList.contains('conversation-card')
+  ))
+  expect(conversationCards[0]).toHaveTextContent('@carlos')
+  fireEvent.click(screen.getByRole('button', { name: /Carlos.*@carlos/ }))
+  expect(screen.getByLabelText('Mensaje')).toHaveValue('')
+
+  await act(async () => {
+    socket.receive({
+      emisor_id: 'said',
+      destinatario_id: 'oscar',
+      contenido: 'Último mensaje de Said',
+      timestamp: '2026-10-01T15:32:00Z',
+    })
+  })
+  conversationCards = within(
+    screen.getByLabelText('Conversaciones'),
+  ).getAllByRole('button').filter((button) => (
+    button.classList.contains('conversation-card')
+  ))
+  expect(conversationCards[0]).toHaveTextContent('@said')
 
   fireEvent.click(screen.getByRole('button', { name: 'Nueva conversación' }))
   expect(screen.getByLabelText('Enviar mensajes a')).toHaveValue('')
@@ -137,4 +188,32 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
   expect(
     await screen.findByRole('heading', { name: 'Iniciar sesión' }),
   ).toBeInTheDocument()
+})
+
+it('conserva el error cuando el navegador cierra la conexión', async () => {
+  vi.spyOn(api, 'post').mockResolvedValue({ data: { token: 'jwt-prueba' } })
+  renderApp()
+
+  fireEvent.change(screen.getByLabelText('Nombre de usuario'), {
+    target: { value: 'oscar' },
+  })
+  fireEvent.change(screen.getByLabelText('Contraseña'), {
+    target: { value: 'password123' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+
+  await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1))
+  const socket = MockWebSocket.instances[0]
+  await act(async () => socket.open())
+  fireEvent.click(screen.getByRole('link', { name: 'Mensajes' }))
+
+  await act(async () => {
+    socket.error()
+    socket.close()
+  })
+
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'No se pudo mantener la conexión del chat.',
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
 })
