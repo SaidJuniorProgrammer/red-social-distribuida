@@ -32,17 +32,15 @@ function PushNotificationCard() {
         return
       }
 
-      try {
-        const subscription = await getCurrentPushSubscription()
-        if (isCurrent) {
-          setState(subscription ? PUSH_STATE.active : PUSH_STATE.available)
-        }
-      } catch {
-        if (isCurrent) setState(PUSH_STATE.available)
+      const subscription = await getCurrentPushSubscription()
+      if (isCurrent) {
+        setState(subscription ? PUSH_STATE.active : PUSH_STATE.available)
       }
     }
 
-    checkSubscription()
+    checkSubscription().catch(() => {
+      if (isCurrent) setState(PUSH_STATE.available)
+    })
     return () => {
       isCurrent = false
     }
