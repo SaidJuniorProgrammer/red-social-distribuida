@@ -82,12 +82,8 @@ a { color: inherit; }
 .auth-footer { justify-content: flex-start; gap: 1rem; color: #767080; font-size: .68rem; }
 .auth-footer span + span::before { content: '•'; margin-right: 1rem; color: #2cc586; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 16rem 1fr; background: #f7f4ff; }
-.app-sidebar { display: flex; min-height: 100vh; flex-direction: column; gap: 2rem; padding: 2rem 1.5rem; border-right: 1px solid #e4dcf1; background: #fff; }
-.app-sidebar nav { display: grid; gap: .5rem; }
-.app-sidebar nav a, .app-sidebar nav span { padding: .75rem 1rem; border-radius: .5rem; color: #716b7c; font-size: .85rem; text-decoration: none; }
-.app-sidebar__active { color: #fff !important; background: linear-gradient(100deg, #6f31cf, #9251e9); }
-.app-sidebar .primary-button { margin-top: auto; }
+.app-layout { min-height: 100vh; display: grid; grid-template-columns: 15.5rem minmax(0, 1fr); background: #f7f4ff; }
+.app-layout__content { min-width: 0; min-height: 100vh; }
 .feed-placeholder { width: min(100%, 58rem); margin: 0 auto; padding: 2rem; }
 .feed-placeholder__header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 1.5rem; border-bottom: 1px solid #e1d9ed; }
 .feed-placeholder__header p { margin: 0 0 .25rem; color: #7a7187; font-size: .75rem; text-transform: uppercase; }
@@ -96,8 +92,8 @@ a { color: inherit; }
 .feed-placeholder__card h2 { margin: 1rem 0 .5rem; font-family: 'Plus Jakarta Sans', sans-serif; }
 .feed-placeholder__card p { max-width: 38rem; margin: 0; color: #667080; line-height: 1.7; }
 
-.messages-layout { min-height: 100vh; display: grid; grid-template-columns: 15.5rem 21rem minmax(0, 1fr); color: #172033; background: #f7f4ff; }
-.messages-sidebar { min-height: 100vh; display: flex; flex-direction: column; gap: 1.5rem; padding: 1.7rem 1.25rem 1.25rem; border-right: 1px solid #e4dcf1; background: #fff; }
+.messages-layout { min-height: 100vh; display: grid; grid-template-columns: 21rem minmax(0, 1fr); color: #172033; background: #f7f4ff; }
+.messages-sidebar { position: sticky; top: 0; height: 100vh; min-height: 0; display: flex; flex-direction: column; gap: 1.5rem; padding: 1.7rem 1.25rem 1.25rem; border-right: 1px solid #e4dcf1; background: #fff; }
 .messages-sidebar__brand { display: grid; gap: .25rem; padding: 0 .65rem; }
 .messages-sidebar__brand > span:last-child { color: #8b8297; font: 500 .62rem monospace; letter-spacing: .04em; }
 .messages-sidebar nav { display: grid; gap: .28rem; }
@@ -195,9 +191,9 @@ a { color: inherit; }
 @keyframes pulse { 50% { opacity: .35; } }
 
 @media (max-width: 68rem) {
+  .app-layout { grid-template-columns: 13.5rem minmax(0, 1fr); }
+  .messages-sidebar { padding-inline: .85rem; }
   .messages-layout { grid-template-columns: 20rem minmax(0, 1fr); }
-  .messages-sidebar { display: none; }
-  .conversation-list__mobile-brand { display: block; margin-bottom: 1.25rem; }
 }
 
 @media (max-width: 52rem) {
@@ -205,10 +201,15 @@ a { color: inherit; }
   .auth-story { padding: 2rem 0 0; }
   .auth-story h1 { font-size: clamp(2.2rem, 9vw, 3.5rem); }
   .auth-card { min-height: auto; }
-  .app-shell { grid-template-columns: 1fr; }
-  .app-sidebar { min-height: auto; flex-direction: row; align-items: center; padding: 1rem; }
-  .app-sidebar nav, .app-sidebar .primary-button { display: none; }
+  .app-layout { grid-template-columns: 1fr; }
+  .app-layout__content { padding-bottom: 4rem; }
+  .messages-sidebar { position: fixed; z-index: 20; inset: auto 0 0; width: 100%; height: auto; min-height: 0; display: block; padding: .45rem .75rem max(.45rem, env(safe-area-inset-bottom)); border-top: 1px solid #e4dcf1; border-right: 0; box-shadow: 0 -.5rem 1.5rem rgb(59 35 90 / 8%); }
+  .messages-sidebar__brand, .messages-sidebar__item, .messages-sidebar__post, .messages-profile { display: none; }
+  .messages-sidebar nav { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+  .messages-sidebar nav a { min-height: 3rem; justify-content: center; gap: .4rem; padding: .55rem .35rem; font-size: .72rem; }
+  .messages-sidebar__icon { width: auto; }
   .messages-layout { grid-template-columns: 1fr; }
+  .conversation-list__mobile-brand { display: block; margin-bottom: 1.25rem; }
   .conversation-list { border-right: 0; }
   .chat-room { display: none; }
   .messages-layout--chat-open .conversation-list { display: none; }

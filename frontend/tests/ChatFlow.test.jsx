@@ -92,7 +92,17 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
   expect(socket.protocols[0]).toBe('bearer-token-carrier')
 
   await act(async () => socket.open())
+  const persistentSidebar = screen.getByRole('complementary', {
+    name: 'Barra lateral principal',
+  })
   fireEvent.click(screen.getByRole('link', { name: 'Mensajes' }))
+  expect(
+    screen.getByRole('complementary', { name: 'Barra lateral principal' }),
+  ).toBe(persistentSidebar)
+  expect(screen.getByRole('link', { name: 'Mensajes' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   expect(screen.getByRole('status')).toHaveTextContent('En línea')
 
   fireEvent.change(screen.getByLabelText('Enviar mensajes a'), {

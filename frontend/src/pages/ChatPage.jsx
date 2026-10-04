@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import BrandMark from '../components/BrandMark.jsx'
 import useAuth from '../hooks/useAuth.js'
 import useChat from '../hooks/useChat.js'
 import { CHAT_CONNECTION_STATUS } from '../services/websocket.js'
+import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
 
 const statusLabels = {
   [CHAT_CONNECTION_STATUS.connecting]: 'Conectando…',
@@ -11,16 +11,6 @@ const statusLabels = {
   [CHAT_CONNECTION_STATUS.disconnected]: 'Sin conexión',
   [CHAT_CONNECTION_STATUS.error]: 'Error de conexión',
 }
-
-const navigationItems = [
-  { icon: '⌂', label: 'Inicio', to: '/feed' },
-  { icon: '#', label: 'Explorar' },
-  { icon: '♡', label: 'Notificaciones' },
-  { icon: '✉', label: 'Mensajes', to: '/chat' },
-  { icon: '▣', label: 'Guardados' },
-  { icon: '◎', label: 'Comunidades' },
-  { icon: '○', label: 'Perfil' },
-]
 
 function formatMessageTime(timestamp) {
   const date = new Date(timestamp)
@@ -32,19 +22,8 @@ function formatMessageTime(timestamp) {
   }).format(date)
 }
 
-function formatDisplayName(username = '') {
-  const normalizedUsername = username.trim()
-  return normalizedUsername
-    ? normalizedUsername.charAt(0).toUpperCase() + normalizedUsername.slice(1)
-    : 'Nueva conversación'
-}
-
-function getInitial(username = '') {
-  return username.trim().charAt(0).toUpperCase() || '?'
-}
-
 function ChatPage() {
-  const { logout, user } = useAuth()
+  const { user } = useAuth()
   const { connectionError, messages, sendMessage, status } = useChat()
   const [recipient, setRecipient] = useState('')
   const [content, setContent] = useState('')
@@ -164,53 +143,6 @@ function ChatPage() {
 
   return (
     <main className={`messages-layout${isMobileChatOpen ? ' messages-layout--chat-open' : ''}`}>
-      <aside className="messages-sidebar">
-        <div className="messages-sidebar__brand">
-          <BrandMark />
-          <span>v2.4 federated</span>
-        </div>
-
-        <nav aria-label="Navegación principal">
-          {navigationItems.map((item) => {
-            const contentItem = (
-              <>
-                <span className="messages-sidebar__icon" aria-hidden="true">{item.icon}</span>
-                {item.label}
-              </>
-            )
-
-            return item.to ? (
-              <Link
-                className={item.to === '/chat' ? 'messages-sidebar__active' : undefined}
-                key={item.label}
-                to={item.to}
-              >
-                {contentItem}
-              </Link>
-            ) : (
-              <span className="messages-sidebar__item" key={item.label}>
-                {contentItem}
-              </span>
-            )
-          })}
-        </nav>
-
-        <button className="primary-button messages-sidebar__post" type="button" disabled>
-          Postear
-        </button>
-
-        <div className="messages-profile">
-          <span className="messages-avatar" aria-hidden="true">
-            {getInitial(user?.username)}
-          </span>
-          <div>
-            <strong>{formatDisplayName(user?.username)}</strong>
-            <span>@{user?.username}</span>
-          </div>
-          <button type="button" aria-label="Cerrar sesión" onClick={logout}>↪</button>
-        </div>
-      </aside>
-
       <section className="conversation-list" aria-label="Conversaciones">
         <header className="conversation-list__header">
           <div>
