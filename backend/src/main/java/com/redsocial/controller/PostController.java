@@ -4,6 +4,7 @@ import com.redsocial.dto.ApiErrorResponse;
 import com.redsocial.dto.PostResponse;
 import com.redsocial.repository.PostRepository;
 import com.redsocial.service.S3StorageService;
+import com.redsocial.service.WebPushService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
@@ -31,6 +32,9 @@ public class PostController {
 
     @Inject
     PostRepository postRepository;
+
+    @Inject
+    WebPushService webPushService;
 
     @POST
     @Consumes(MediaType.MULTIPART_FORM_DATA)
@@ -86,6 +90,8 @@ public class PostController {
                         .entity(new ApiErrorResponse("USER_NOT_FOUND", "autor", "El usuario autor no existe en Neo4j."))
                         .build();
             }
+
+            webPushService.notificarSeguidoresNuevaPublicacion(autor.trim(), idPost, texto.trim());
 
             PostResponse response = new PostResponse(
                     idPost,
