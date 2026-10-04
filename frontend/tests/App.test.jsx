@@ -8,7 +8,6 @@ import { AUTH_STORAGE_KEY } from '../src/context/authStorage.js'
 const routes = [
   { path: '/login', heading: 'Iniciar sesión', level: 2 },
   { path: '/registro', heading: 'Crear cuenta', level: 2 },
-  { path: '/perfil', heading: 'Perfil', level: 1 },
 ]
 
 function renderApp(path) {
@@ -35,12 +34,14 @@ describe.each(routes)('ruta $path', ({ heading, level, path }) => {
   })
 })
 
-it('protege el feed cuando no existe una sesión', async () => {
-  renderApp('/feed')
+describe.each(['/feed', '/perfil'])('ruta protegida %s', (path) => {
+  it('regresa al inicio de sesión cuando no existe una sesión', async () => {
+    renderApp(path)
 
-  expect(
-    await screen.findByRole('heading', { level: 2, name: 'Iniciar sesión' }),
-  ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Iniciar sesión' }),
+    ).toBeInTheDocument()
+  })
 })
 
 it('muestra el destino protegido y permite cerrar sesión', async () => {
@@ -52,6 +53,10 @@ it('muestra el destino protegido y permite cerrar sesión', async () => {
 
   expect(
     screen.getByRole('heading', { level: 1, name: 'Hola, @oscar' }),
+  ).toBeInTheDocument()
+
+  expect(
+    screen.getByRole('complementary', { name: 'Barra lateral principal' }),
   ).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
