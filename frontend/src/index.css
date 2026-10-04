@@ -128,10 +128,19 @@ a { color: inherit; }
 .conversation-list__mobile-brand { display: none; }
 .chat-recipient { display: grid; gap: .5rem; padding: 0 1.35rem 1.2rem; border-bottom: 1px solid #eee8f4; }
 .chat-recipient label { color: #5f576b; font-size: .7rem; font-weight: 700; }
-.chat-recipient > div { display: flex; align-items: center; border: 1px solid #ddd4e9; border-radius: .55rem; background: #fcfbfe; }
-.chat-recipient span { padding-left: .8rem; color: #7434cf; font-weight: 700; }
+.chat-recipient__field { display: flex; align-items: center; border: 1px solid #ddd4e9; border-radius: .55rem; background: #fcfbfe; }
+.chat-recipient__field > span { padding-left: .8rem; color: #7434cf; font-weight: 700; }
 .chat-recipient input { min-width: 0; width: 100%; height: 2.55rem; padding: 0 .75rem 0 .2rem; border: 0; outline: 0; color: #172033; background: transparent; font-size: .8rem; }
-.chat-recipient > div:focus-within { border-color: #7e3ed9; box-shadow: 0 0 0 .2rem rgb(126 62 217 / 12%); }
+.chat-recipient__field:focus-within { border-color: #7e3ed9; box-shadow: 0 0 0 .2rem rgb(126 62 217 / 12%); }
+.chat-recipient__status, .chat-recipient__error { margin: 0; color: #746b80; font-size: .68rem; line-height: 1.45; }
+.chat-recipient__error { color: #b42318; }
+.chat-recipient__results { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
+.chat-recipient__results button { display: flex; width: 100%; align-items: center; gap: .65rem; padding: .55rem; border: 0; border-radius: .55rem; color: #31273d; background: #f5f0fb; cursor: pointer; text-align: left; }
+.chat-recipient__results button:hover, .chat-recipient__results button:focus-visible { background: #ede4f8; outline: 2px solid #b794e7; outline-offset: 1px; }
+.chat-recipient__results .messages-avatar { padding: 0; }
+.chat-recipient__results button > span:last-child { display: grid; gap: .1rem; padding: 0; }
+.chat-recipient__results strong { font-size: .75rem; }
+.chat-recipient__results small { color: #7d7289; font-size: .65rem; }
 .conversation-list__summary { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 1rem 1.35rem .65rem; }
 .conversation-list__summary h2 { margin: 0; color: #6b6475; font-size: .66rem; letter-spacing: .04em; text-transform: uppercase; }
 .conversation-list__summary span { padding: .24rem .45rem; border-radius: 999px; color: #6a30bc; background: #ede9fe; font-size: .62rem; font-weight: 700; }

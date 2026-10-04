@@ -64,11 +64,13 @@ describe('cliente WebSocket del chat', () => {
   it('abre la conexión, recibe mensajes y envía el contrato esperado', () => {
     const statuses = []
     const receivedMessages = []
+    const deliveryErrors = []
     const client = new ChatWebSocketClient({
       token: 'jwt-prueba',
       username: 'oscar',
       WebSocketImpl: MockWebSocket,
       onMessage: (message) => receivedMessages.push(message),
+      onDeliveryError: (message) => deliveryErrors.push(message),
       onStatusChange: (status) => statuses.push(status),
     })
 
@@ -83,6 +85,11 @@ describe('cliente WebSocket del chat', () => {
       timestamp: '2026-10-01T15:00:00Z',
     })
     const sentMessage = client.sendMessage('said', 'Todo listo')
+    socket.receive({
+      type: 'delivery_error',
+      destinatario_id: 'said',
+      message: 'Said no está conectado.',
+    })
 
     expect(socket.url).toBe('ws://localhost:8080/chat')
     expect(socket.protocols[0]).toBe('bearer-token-carrier')
@@ -105,6 +112,7 @@ describe('cliente WebSocket del chat', () => {
       timestamp: expect.any(String),
     })
     expect(sentMessage.id).toEqual(expect.any(String))
+    expect(deliveryErrors).toEqual(['Said no está conectado.'])
   })
 
   it('normaliza el contrato anterior basado en campos con sufijo id', () => {

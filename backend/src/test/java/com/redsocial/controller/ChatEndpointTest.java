@@ -28,8 +28,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @QuarkusTest
 class ChatEndpointTest {
 
-    private static final LinkedBlockingDeque<String> MENSAJES_RECIBIDOS = new LinkedBlockingDeque<>();
-
     @TestHTTPResource("/chat")
     URI uriChat;
 
@@ -37,52 +35,65 @@ class ChatEndpointTest {
     ChatEndpoint chatEndpoint;
 
     static class ClientePruebaSocket extends Endpoint {
+        private final LinkedBlockingDeque<String> mensajesRecibidos;
+
+        ClientePruebaSocket(LinkedBlockingDeque<String> mensajesRecibidos) {
+            this.mensajesRecibidos = mensajesRecibidos;
+        }
+
         @Override
         public void onOpen(Session session, EndpointConfig config) {
-            session.addMessageHandler(String.class, MENSAJES_RECIBIDOS::add);
+            session.addMessageHandler(String.class, mensajesRecibidos::add);
         }
     }
 
     @Test
-    void autenticaLaConexionYDerivaElEmisorDesdeElToken() throws Exception {
-        MENSAJES_RECIBIDOS.clear();
+    void confirmaLaEntregaYDerivaElEmisorDesdeElToken() throws Exception {
+        LinkedBlockingDeque<String> mensajesDeAdmin = new LinkedBlockingDeque<>();
+        LinkedBlockingDeque<String> mensajesDeGualter = new LinkedBlockingDeque<>();
 
-        try (Session sesionOscar = conectarComo("oscar");
-             Session sesionSaid = conectarComo("said")) {
+        try (Session sesionAdmin = conectarComo("admin", mensajesDeAdmin);
+             Session sesionGualter = conectarComo("gualter", mensajesDeGualter)) {
             esperarSesionesActivas(2);
 
             String mensajeConEmisorFalso = """
                     {
                       "emisor_id": "mallory",
-                      "destinatario_id": "oscar",
-                      "contenido": "Hola Oscar, probando WebSocket!",
+                      "destinatario_id": "admin",
+                      "contenido": "Hola Admin, probando WebSocket!",
                       "timestamp": "2026-10-03T15:00:00Z"
                     }
                     """;
-            sesionSaid.getAsyncRemote().sendText(mensajeConEmisorFalso);
+            sesionGualter.getAsyncRemote().sendText(mensajeConEmisorFalso);
 
-            String recibido = MENSAJES_RECIBIDOS.poll(5, TimeUnit.SECONDS);
-            assertNotNull(recibido);
-            assertTrue(recibido.contains("Hola Oscar, probando WebSocket!"));
-            assertTrue(recibido.contains("said"));
-            assertFalse(recibido.contains("mallory"));
+            String recibidoPorAdmin = mensajesDeAdmin.poll(5, TimeUnit.SECONDS);
+            assertNotNull(recibidoPorAdmin);
+            assertTrue(recibidoPorAdmin.contains("Hola Admin, probando WebSocket!"));
+            assertTrue(recibidoPorAdmin.contains("gualter"));
+            assertFalse(recibidoPorAdmin.contains("mallory"));
 
-            sesionSaid.getAsyncRemote().sendText("""
+            String confirmacionParaGualter = mensajesDeGualter.poll(5, TimeUnit.SECONDS);
+            assertNotNull(confirmacionParaGualter);
+            assertTrue(confirmacionParaGualter.contains("Hola Admin, probando WebSocket!"));
+
+            sesionAdmin.close();
+            esperarSesionesActivas(1);
+            sesionGualter.getAsyncRemote().sendText("""
                     {
-                      "destinatario_id": "oscar",
-                      "contenido": "Segundo mensaje en tiempo real"
+                      "destinatario_id": "admin",
+                      "contenido": "Mensaje sin destinatario conectado"
                     }
                     """);
 
-            String segundoRecibido = MENSAJES_RECIBIDOS.poll(5, TimeUnit.SECONDS);
-            assertNotNull(segundoRecibido);
-            assertTrue(segundoRecibido.contains("Segundo mensaje en tiempo real"));
-            assertTrue(segundoRecibido.contains("said"));
+            String errorDeEntrega = mensajesDeGualter.poll(5, TimeUnit.SECONDS);
+            assertNotNull(errorDeEntrega);
+            assertTrue(errorDeEntrega.contains("delivery_error"));
+            assertTrue(errorDeEntrega.contains("admin"));
 
-            sesionSaid.getAsyncRemote().sendText(
+            sesionGualter.getAsyncRemote().sendText(
                     "{\"destinatario_id\": \"\", \"contenido\": \"ignorado\"}"
             );
-            assertEquals(0, MENSAJES_RECIBIDOS.size());
+            assertEquals(0, mensajesDeGualter.size());
         }
 
         esperarSesionesActivas(0);
@@ -91,15 +102,17 @@ class ChatEndpointTest {
     @Test
     void rechazaConexionesSinToken() {
         ClientEndpointConfig config = ClientEndpointConfig.Builder.create().build();
+        LinkedBlockingDeque<String> mensajes = new LinkedBlockingDeque<>();
 
         assertThrows(IOException.class, () -> ContainerProvider.getWebSocketContainer()
-                .connectToServer(new ClientePruebaSocket(), config, uriChat));
+                .connectToServer(new ClientePruebaSocket(mensajes), config, uriChat));
     }
 
     @Test
     void reemplazaLaSesionAnteriorDelMismoUsuario() throws Exception {
-        try (Session sesionAnterior = conectarComo("oscar");
-             Session sesionNueva = conectarComo("oscar")) {
+        LinkedBlockingDeque<String> mensajes = new LinkedBlockingDeque<>();
+        try (Session sesionAnterior = conectarComo("oscar", mensajes);
+             Session sesionNueva = conectarComo("oscar", mensajes)) {
             esperarSesionesActivas(1);
             esperarSesionCerrada(sesionAnterior);
             assertTrue(sesionNueva.isOpen());
@@ -108,7 +121,10 @@ class ChatEndpointTest {
         esperarSesionesActivas(0);
     }
 
-    private Session conectarComo(String username) throws Exception {
+    private Session conectarComo(
+            String username,
+            LinkedBlockingDeque<String> mensajesRecibidos
+    ) throws Exception {
         String token = Jwt.issuer("https://redsocial.com/issuer")
                 .upn(username)
                 .groups("Usuario")
@@ -125,7 +141,7 @@ class ChatEndpointTest {
                 .build();
 
         return ContainerProvider.getWebSocketContainer()
-                .connectToServer(new ClientePruebaSocket(), config, uriChat);
+                .connectToServer(new ClientePruebaSocket(mensajesRecibidos), config, uriChat);
     }
 
     private void esperarSesionesActivas(int totalEsperado) throws InterruptedException {

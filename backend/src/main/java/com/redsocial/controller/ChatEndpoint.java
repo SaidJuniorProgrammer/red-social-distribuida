@@ -1,6 +1,7 @@
 package com.redsocial.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.redsocial.dto.ChatDeliveryError;
 import com.redsocial.dto.ChatMessage;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
@@ -59,7 +60,7 @@ public class ChatEndpoint {
     }
 
     @OnTextMessage
-    public Uni<Void> onMessage(String rawMessage) {
+    public Uni<Void> onMessage(String rawMessage, WebSocketConnection connection) {
         try {
             ChatMessage entrante = objectMapper.readValue(rawMessage, ChatMessage.class);
 
@@ -81,11 +82,25 @@ public class ChatEndpoint {
 
             WebSocketConnection sesionDestinatario = sesiones.get(mensajeNormalizado.destinatario_id());
             if (sesionDestinatario == null) {
-                return Uni.createFrom().voidItem();
+                return enviarErrorDeEntrega(connection, mensajeNormalizado.destinatario_id());
             }
 
             String payloadJson = objectMapper.writeValueAsString(mensajeNormalizado);
-            return sesionDestinatario.sendText(payloadJson);
+            if (sesionDestinatario.equals(connection)) {
+                return sesionDestinatario.sendText(payloadJson);
+            }
+
+            return sesionDestinatario.sendText(payloadJson)
+                    .chain(() -> connection.sendText(payloadJson))
+                    .onFailure()
+                    .recoverWithUni(failure -> {
+                        LOG.warnf(
+                                "No se pudo entregar un mensaje a %s: %s",
+                                mensajeNormalizado.destinatario_id(),
+                                failure.getMessage()
+                        );
+                        return enviarErrorDeEntrega(connection, mensajeNormalizado.destinatario_id());
+                    });
         } catch (Exception exception) {
             LOG.error("No se pudo procesar ni rutear el mensaje de chat", exception);
             return Uni.createFrom().voidItem();
@@ -98,6 +113,23 @@ public class ChatEndpoint {
 
     private String usernameAutenticado() {
         return securityIdentity.getPrincipal().getName();
+    }
+
+    private Uni<Void> enviarErrorDeEntrega(
+            WebSocketConnection connection,
+            String destinatario
+    ) {
+        try {
+            String payload = objectMapper.writeValueAsString(new ChatDeliveryError(
+                    "delivery_error",
+                    destinatario,
+                    "No se pudo entregar el mensaje porque el usuario no está conectado."
+            ));
+            return connection.sendText(payload);
+        } catch (Exception exception) {
+            LOG.error("No se pudo informar el error de entrega", exception);
+            return Uni.createFrom().voidItem();
+        }
     }
 
     private void eliminarSesion(WebSocketConnection connection) {
