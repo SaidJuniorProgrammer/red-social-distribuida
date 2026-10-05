@@ -206,11 +206,11 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
     socket.receive({
       type: 'delivery_error',
       destinatario_id: 'said',
-      message: 'No se pudo entregar el mensaje porque el usuario no está conectado.',
+      message: 'No se pudo enviar el mensaje porque el usuario no existe.',
     })
   })
   expect(screen.getByRole('alert')).toHaveTextContent(
-    'No se pudo entregar el mensaje porque el usuario no está conectado.',
+    'No se pudo enviar el mensaje porque el usuario no existe.',
   )
 
   fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))

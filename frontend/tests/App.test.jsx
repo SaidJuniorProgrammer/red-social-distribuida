@@ -34,13 +34,40 @@ describe.each(routes)('ruta $path', ({ heading, level, path }) => {
   })
 })
 
-describe.each(['/feed', '/notificaciones', '/perfil'])('ruta protegida %s', (path) => {
+describe.each([
+  '/feed',
+  '/explorar',
+  '/notificaciones',
+  '/guardados',
+  '/comunidades',
+  '/perfil',
+])('ruta protegida %s', (path) => {
   it('regresa al inicio de sesión cuando no existe una sesión', async () => {
     renderApp(path)
 
     expect(
       await screen.findByRole('heading', { level: 2, name: 'Iniciar sesión' }),
     ).toBeInTheDocument()
+  })
+})
+
+describe.each([
+  { path: '/explorar', link: 'Explorar', heading: 'Explorar' },
+  { path: '/guardados', link: 'Guardados', heading: 'Guardados' },
+  { path: '/comunidades', link: 'Comunidades', heading: 'Comunidades' },
+])('sección $path', ({ heading, link, path }) => {
+  it('se puede abrir desde la navegación protegida', () => {
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+    )
+    renderApp(path)
+
+    expect(screen.getByRole('heading', { level: 1, name: heading })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: link })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 })
 

@@ -197,7 +197,7 @@ function ChatPage() {
           <div>
             <span className="conversation-list__mobile-brand"><BrandMark /></span>
             <h1>Mensajes</h1>
-            <p>Chat en tiempo real</p>
+            <p>Mensajes disponibles aunque cierres sesión</p>
           </div>
           <button type="button" aria-label="Nueva conversación" onClick={startNewConversation}>＋</button>
         </header>
@@ -327,7 +327,7 @@ function ChatPage() {
             <div className="chat-empty">
               <span aria-hidden="true">✉</span>
               <h2>Inicia una conversación</h2>
-              <p>Elige un usuario y envíale un mensaje. La respuesta aparecerá aquí al instante.</p>
+              <p>Elige un usuario y envíale un mensaje. Si está desconectado, lo verá cuando vuelva.</p>
             </div>
           ) : (
             <>

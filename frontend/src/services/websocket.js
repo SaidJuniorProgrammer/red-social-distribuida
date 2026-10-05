@@ -133,6 +133,14 @@ export class ChatWebSocketClient {
           )
           return
         }
+
+        if (event?.type === 'history' && Array.isArray(event.messages)) {
+          event.messages.forEach((message) => {
+            this.onMessage?.(parseChatMessage(JSON.stringify(message)))
+          })
+          return
+        }
+
         this.onMessage?.(parseChatMessage(data))
       } catch {
         this.onStatusChange?.(

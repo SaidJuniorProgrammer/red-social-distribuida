@@ -84,6 +84,18 @@ describe('cliente WebSocket del chat', () => {
       contenido: 'Hola, Oscar',
       timestamp: '2026-10-01T15:00:00Z',
     })
+    socket.receive({
+      type: 'history',
+      messages: [
+        {
+          id: 'mensaje-anterior',
+          emisor_id: 'oscar',
+          destinatario_id: 'said',
+          contenido: 'Mensaje guardado',
+          timestamp: '2026-09-30T12:00:00Z',
+        },
+      ],
+    })
     const sentMessage = client.sendMessage('said', 'Todo listo')
     socket.receive({
       type: 'delivery_error',
@@ -104,6 +116,13 @@ describe('cliente WebSocket del chat', () => {
         destinatario: 'oscar',
         contenido: 'Hola, Oscar',
         timestamp: '2026-10-01T15:00:00Z',
+      },
+      {
+        id: 'mensaje-anterior',
+        emisor: 'oscar',
+        destinatario: 'said',
+        contenido: 'Mensaje guardado',
+        timestamp: '2026-09-30T12:00:00Z',
       },
     ])
     expect(JSON.parse(socket.sentMessages[0])).toEqual({

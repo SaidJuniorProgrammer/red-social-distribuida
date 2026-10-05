@@ -1,5 +1,7 @@
 package com.redsocial.controller;
 
+import com.redsocial.dto.ChatMessage;
+import com.redsocial.repository.ChatRepository;
 import io.quarkus.test.common.http.TestHTTPResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.smallrye.jwt.build.Jwt;
@@ -9,19 +11,31 @@ import jakarta.websocket.ContainerProvider;
 import jakarta.websocket.Endpoint;
 import jakarta.websocket.EndpointConfig;
 import jakarta.websocket.Session;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.Record;
+import org.neo4j.driver.Result;
+import org.neo4j.driver.TransactionCallback;
+import org.neo4j.driver.TransactionContext;
+import org.neo4j.driver.Value;
+import org.neo4j.driver.Values;
 
 import java.io.IOException;
+import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,6 +47,17 @@ class ChatEndpointTest {
 
     @Inject
     ChatEndpoint chatEndpoint;
+
+    @Inject
+    ChatRepository chatRepository;
+
+    private final List<ChatMessage> mensajesGuardados = new ArrayList<>();
+
+    @BeforeEach
+    void configurarMensajesEnMemoria() {
+        mensajesGuardados.clear();
+        chatRepository.setDriver(crearDriverEnMemoria());
+    }
 
     static class ClientePruebaSocket extends Endpoint {
         private final LinkedBlockingDeque<String> mensajesRecibidos;
@@ -48,13 +73,13 @@ class ChatEndpointTest {
     }
 
     @Test
-    void confirmaLaEntregaYDerivaElEmisorDesdeElToken() throws Exception {
+    void guardaMensajesParaUsuariosDesconectadosYDerivaElEmisorDelToken() throws Exception {
         LinkedBlockingDeque<String> mensajesDeAdmin = new LinkedBlockingDeque<>();
         LinkedBlockingDeque<String> mensajesDeGualter = new LinkedBlockingDeque<>();
 
-        try (Session sesionAdmin = conectarComo("admin", mensajesDeAdmin);
-             Session sesionGualter = conectarComo("gualter", mensajesDeGualter)) {
-            esperarSesionesActivas(2);
+        try (Session sesionGualter = conectarComo("gualter", mensajesDeGualter)) {
+            esperarSesionesActivas(1);
+            assertTrue(recibir(mensajesDeGualter).contains("\"type\":\"history\""));
 
             String mensajeConEmisorFalso = """
                     {
@@ -66,34 +91,40 @@ class ChatEndpointTest {
                     """;
             sesionGualter.getAsyncRemote().sendText(mensajeConEmisorFalso);
 
-            String recibidoPorAdmin = mensajesDeAdmin.poll(5, TimeUnit.SECONDS);
-            assertNotNull(recibidoPorAdmin);
-            assertTrue(recibidoPorAdmin.contains("Hola Admin, probando WebSocket!"));
-            assertTrue(recibidoPorAdmin.contains("gualter"));
-            assertFalse(recibidoPorAdmin.contains("mallory"));
-
-            String confirmacionParaGualter = mensajesDeGualter.poll(5, TimeUnit.SECONDS);
-            assertNotNull(confirmacionParaGualter);
+            String confirmacionParaGualter = recibir(mensajesDeGualter);
             assertTrue(confirmacionParaGualter.contains("Hola Admin, probando WebSocket!"));
+            assertTrue(confirmacionParaGualter.contains("gualter"));
+            assertFalse(confirmacionParaGualter.contains("mallory"));
+            assertEquals(1, mensajesGuardados.size());
 
-            sesionAdmin.close();
-            esperarSesionesActivas(1);
-            sesionGualter.getAsyncRemote().sendText("""
-                    {
-                      "destinatario_id": "admin",
-                      "contenido": "Mensaje sin destinatario conectado"
-                    }
-                    """);
+            try (Session sesionAdmin = conectarComo("admin", mensajesDeAdmin)) {
+                esperarSesionesActivas(2);
+                String historialDeAdmin = recibir(mensajesDeAdmin);
+                assertTrue(historialDeAdmin.contains("\"type\":\"history\""));
+                assertTrue(historialDeAdmin.contains("Hola Admin, probando WebSocket!"));
 
-            String errorDeEntrega = mensajesDeGualter.poll(5, TimeUnit.SECONDS);
-            assertNotNull(errorDeEntrega);
-            assertTrue(errorDeEntrega.contains("delivery_error"));
-            assertTrue(errorDeEntrega.contains("admin"));
+                sesionGualter.getAsyncRemote().sendText("""
+                        {
+                          "destinatario_id": "admin",
+                          "contenido": "Ahora estás conectado"
+                        }
+                        """);
+                assertTrue(recibir(mensajesDeGualter).contains("Ahora estás conectado"));
+                assertTrue(recibir(mensajesDeAdmin).contains("Ahora estás conectado"));
+                assertTrue(sesionAdmin.isOpen());
+            }
 
             sesionGualter.getAsyncRemote().sendText(
                     "{\"destinatario_id\": \"\", \"contenido\": \"ignorado\"}"
             );
-            assertEquals(0, mensajesDeGualter.size());
+            assertNull(mensajesDeGualter.poll(250, TimeUnit.MILLISECONDS));
+
+            sesionGualter.getAsyncRemote().sendText(
+                    "{\"destinatario_id\": \"fantasma\", \"contenido\": \"ignorado\"}"
+            );
+            String errorDeEntrega = recibir(mensajesDeGualter);
+            assertTrue(errorDeEntrega.contains("delivery_error"));
+            assertTrue(errorDeEntrega.contains("no existe"));
         }
 
         esperarSesionesActivas(0);
@@ -116,6 +147,7 @@ class ChatEndpointTest {
             esperarSesionesActivas(1);
             esperarSesionCerrada(sesionAnterior);
             assertTrue(sesionNueva.isOpen());
+            assertTrue(recibir(mensajes).contains("\"type\":\"history\""));
         }
 
         esperarSesionesActivas(0);
@@ -159,5 +191,109 @@ class ChatEndpointTest {
             Thread.sleep(25);
         }
         assertFalse(session.isOpen());
+    }
+
+    private String recibir(LinkedBlockingDeque<String> mensajes) throws InterruptedException {
+        String mensaje = mensajes.poll(5, TimeUnit.SECONDS);
+        assertNotNull(mensaje);
+        return mensaje;
+    }
+
+    private Driver crearDriverEnMemoria() {
+        Set<String> usuarios = Set.of("admin", "gualter", "oscar");
+
+        TransactionContext transaction = (TransactionContext) Proxy.newProxyInstance(
+                TransactionContext.class.getClassLoader(),
+                new Class<?>[]{TransactionContext.class},
+                (proxy, method, args) -> {
+                    if (!"run".equals(method.getName())) {
+                        return null;
+                    }
+
+                    String query = (String) args[0];
+                    Value parameters = (Value) args[1];
+                    List<Record> records = new ArrayList<>();
+
+                    if (query.contains("CREATE (emisor)-[:ENVIA]")) {
+                        String destinatario = parameters.get("destinatario").asString();
+                        if (usuarios.contains(destinatario)) {
+                            ChatMessage message = new ChatMessage(
+                                    parameters.get("id").asString(),
+                                    parameters.get("emisor").asString(),
+                                    destinatario,
+                                    parameters.get("contenido").asString(),
+                                    parameters.get("timestamp").asString()
+                            );
+                            mensajesGuardados.add(message);
+                            records.add(registroDe(message));
+                        }
+                    } else {
+                        String username = parameters.get("username").asString();
+                        mensajesGuardados.stream()
+                                .filter(message -> username.equals(message.emisor_id())
+                                        || username.equals(message.destinatario_id()))
+                                .map(this::registroDe)
+                                .forEach(records::add);
+                    }
+
+                    return resultadoDe(records);
+                }
+        );
+
+        org.neo4j.driver.Session session = (org.neo4j.driver.Session) Proxy.newProxyInstance(
+                org.neo4j.driver.Session.class.getClassLoader(),
+                new Class<?>[]{org.neo4j.driver.Session.class},
+                (proxy, method, args) -> {
+                    if ("executeRead".equals(method.getName())
+                            || "executeWrite".equals(method.getName())) {
+                        TransactionCallback<?> callback = (TransactionCallback<?>) args[0];
+                        return callback.execute(transaction);
+                    }
+                    return null;
+                }
+        );
+
+        return (Driver) Proxy.newProxyInstance(
+                Driver.class.getClassLoader(),
+                new Class<?>[]{Driver.class},
+                (proxy, method, args) -> "session".equals(method.getName()) ? session : null
+        );
+    }
+
+    private Result resultadoDe(List<Record> records) {
+        var index = new int[]{0};
+        return (Result) Proxy.newProxyInstance(
+                Result.class.getClassLoader(),
+                new Class<?>[]{Result.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "hasNext" -> index[0] < records.size();
+                    case "next" -> records.get(index[0]++);
+                    case "list" -> mapearRegistros(records, args[0]);
+                    default -> null;
+                }
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Object> mapearRegistros(List<Record> records, Object mapper) {
+        var function = (java.util.function.Function<Record, Object>) mapper;
+        return records.stream().map(function).toList();
+    }
+
+    private Record registroDe(ChatMessage message) {
+        Map<String, String> values = Map.of(
+                "id", message.id(),
+                "emisor", message.emisor_id(),
+                "destinatario", message.destinatario_id(),
+                "contenido", message.contenido(),
+                "timestamp", message.timestamp()
+        );
+        return (Record) Proxy.newProxyInstance(
+                Record.class.getClassLoader(),
+                new Class<?>[]{Record.class},
+                (proxy, method, args) -> "get".equals(method.getName())
+                        ? Values.value(values.get((String) args[0]))
+                        : null
+        );
     }
 }
