@@ -107,12 +107,14 @@ RETURN a.username AS dejo_de_seguir_a, b.username AS ex_seguido;
 
 // ------------------------------------------------------------
 // 10) DAR LIKE a una publicación
-//     MERGE es idempotente: si el usuario ya reacciono, no crea otra;
-//     solo registra tipo_reaccion y fecha la primera vez.
+//     MERGE asegura UNA sola relacion REACCIONA por usuario-post.
+//     ON CREATE fija la fecha la primera vez; el SET siempre deja
+//     tipo_reaccion = 'LIKE' (convierte una reaccion previa, p.ej. LOVE).
 // ------------------------------------------------------------
 MATCH (u:Usuario {id_usuario: $miId}), (p:Post {id_post: $idPost})
 MERGE (u)-[r:REACCIONA]->(p)
-  ON CREATE SET r.tipo_reaccion = 'LIKE', r.fecha = datetime()
+  ON CREATE SET r.fecha = datetime()
+SET r.tipo_reaccion = 'LIKE'
 RETURN u.username AS usuario, p.id_post AS post, r.tipo_reaccion AS reaccion;
 
 // ------------------------------------------------------------
