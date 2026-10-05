@@ -3,6 +3,7 @@ package com.redsocial.controller;
 import com.redsocial.repository.UsuarioRepository;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import io.restassured.path.json.JsonPath;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,12 +18,15 @@ import org.neo4j.driver.Values;
 import org.neo4j.driver.exceptions.ClientException;
 
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusTest
 public class AuthIntegrationTest {
@@ -224,14 +228,23 @@ public class AuthIntegrationTest {
             .body("field", equalTo("email"));
 
         // 6. Login exitoso (200 y devuelve token)
-        given()
+        String token = given()
             .contentType(ContentType.JSON)
             .body("{\"username\":\"" + testUser + "\",\"password\":\"" + testPassword + "\"}")
         .when()
             .post("/api/auth/login")
         .then()
             .statusCode(200)
-            .body(containsString("token"));
+            .body(containsString("token"))
+            .extract()
+            .path("token");
+
+        String tokenPayload = new String(
+                Base64.getUrlDecoder().decode(token.split("\\.")[1]),
+                StandardCharsets.UTF_8
+        );
+        JsonPath claims = JsonPath.from(tokenPayload);
+        assertEquals(600L, claims.getLong("exp") - claims.getLong("iat"));
 
         // 7. Login fallido por contraseña incorrecta (401)
         given()

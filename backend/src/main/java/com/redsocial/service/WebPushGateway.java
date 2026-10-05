@@ -5,7 +5,7 @@ import com.redsocial.dto.PushSubscriptionRequest;
 
 public interface WebPushGateway {
 
-    void enviar(
+    int enviar(
             PushSubscriptionRequest subscription,
             PushNotificationPayload payload,
             String publicKey,

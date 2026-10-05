@@ -23,6 +23,9 @@ FOR (c:Conversacion) REQUIRE c.id_conversacion IS UNIQUE;
 CREATE CONSTRAINT mensaje_id IF NOT EXISTS
 FOR (m:Mensaje) REQUIRE m.id_mensaje IS UNIQUE;
 
+CREATE CONSTRAINT push_subscription_endpoint IF NOT EXISTS
+FOR (s:PushSubscription) REQUIRE s.endpoint IS UNIQUE;
+
 // --- Índices para consultas frecuentes ---
 CREATE INDEX post_fecha IF NOT EXISTS
 FOR (p:Post) ON (p.fecha_publicacion);

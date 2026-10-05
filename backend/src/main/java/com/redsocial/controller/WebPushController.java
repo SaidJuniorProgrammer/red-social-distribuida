@@ -3,6 +3,7 @@ package com.redsocial.controller;
 import com.redsocial.dto.ApiErrorResponse;
 import com.redsocial.dto.ApiMessageResponse;
 import com.redsocial.dto.PushSubscriptionRequest;
+import com.redsocial.service.PushEndpointValidator;
 import com.redsocial.service.WebPushService;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
@@ -29,6 +30,9 @@ public class WebPushController {
     WebPushService webPushService;
 
     @Inject
+    PushEndpointValidator pushEndpointValidator;
+
+    @Inject
     SecurityIdentity securityIdentity;
 
     @GET
@@ -47,6 +51,15 @@ public class WebPushController {
                             "INVALID_SUBSCRIPTION",
                             "endpoint",
                             "El endpoint y sus llaves son obligatorios."
+                    ))
+                    .build();
+        }
+        if (!pushEndpointValidator.esSeguro(request.endpoint())) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ApiErrorResponse(
+                            "INVALID_PUSH_ENDPOINT",
+                            "endpoint",
+                            "El endpoint de notificaciones no pertenece a un servicio Push permitido."
                     ))
                     .build();
         }

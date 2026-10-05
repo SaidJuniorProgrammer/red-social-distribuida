@@ -2,6 +2,8 @@ package com.redsocial.controller;
 
 import com.redsocial.dto.PushSubscriptionRequest;
 import com.redsocial.repository.PostRepository;
+import com.redsocial.repository.PushSubscriptionRepository;
+import com.redsocial.service.PushEndpointValidator;
 import com.redsocial.service.S3StorageService;
 import com.redsocial.service.WebPushService;
 import com.redsocial.service.WebPushGateway;
@@ -64,15 +66,37 @@ class WebPushIntegrationTest {
         endpointsEntregados.clear();
         QuarkusMock.installMockForType(new WebPushGatewayImpl() {
             @Override
-            public void enviar(
+            public int enviar(
                     PushSubscriptionRequest subscription,
                     com.redsocial.dto.PushNotificationPayload payload,
                     String publicKey,
                     String privateKey
             ) {
                 endpointsEntregados.add(subscription.endpoint());
+                return 201;
             }
         }, WebPushGateway.class);
+        QuarkusMock.installMockForType(new PushEndpointValidator() {
+            @Override
+            public boolean esSeguro(String endpoint) {
+                return endpoint != null && endpoint.startsWith("https://");
+            }
+        }, PushEndpointValidator.class);
+        QuarkusMock.installMockForType(new PushSubscriptionRepository() {
+            @Override
+            public void guardar(PushSubscriptionRequest subscription) {
+            }
+
+            @Override
+            public boolean eliminar(String usuario, String endpoint) {
+                return false;
+            }
+
+            @Override
+            public List<PushSubscriptionRequest> obtenerTodas() {
+                return List.of();
+            }
+        }, PushSubscriptionRepository.class);
         S3Client s3Proxy = (S3Client) Proxy.newProxyInstance(
                 S3Client.class.getClassLoader(),
                 new Class[]{S3Client.class},
@@ -275,6 +299,20 @@ class WebPushIntegrationTest {
                 .post("/api/push/subscribe")
         .then()
                 .statusCode(400);
+
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+                .contentType("application/json")
+                .body(new PushSubscriptionRequest(
+                        null,
+                        "http://127.0.0.1/notificaciones",
+                        Map.of("p256dh", "llave-p256dh", "auth", "llave-auth")
+                ))
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(400)
+                .body("code", org.hamcrest.CoreMatchers.equalTo("INVALID_PUSH_ENDPOINT"));
 
         given()
                 .contentType("application/json")
