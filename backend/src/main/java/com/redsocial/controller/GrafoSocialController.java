@@ -5,7 +5,11 @@ import com.redsocial.dto.FeedItemResponse;
 import com.redsocial.dto.FeedResponse;
 import com.redsocial.dto.GrafoStatusResponse;
 import com.redsocial.dto.SugerenciaResponse;
+import com.redsocial.dto.UsuarioResumenResponse;
 import com.redsocial.repository.GrafoSocialRepository;
+import com.redsocial.repository.UsuarioRepository;
+import io.quarkus.security.Authenticated;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -13,6 +17,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
@@ -28,6 +33,41 @@ public class GrafoSocialController {
 
     @Inject
     GrafoSocialRepository grafoSocialRepository;
+
+    @Inject
+    UsuarioRepository usuarioRepository;
+
+    @Inject
+    SecurityIdentity securityIdentity;
+
+    @GET
+    @Authenticated
+    @Path("/usuarios")
+    public Response buscarUsuarios(@QueryParam("query") String query) {
+        String busqueda = query == null ? "" : query.trim();
+        if (busqueda.isEmpty()) {
+            return Response.ok(Map.of("usuarios", List.of())).build();
+        }
+
+        try {
+            List<UsuarioResumenResponse> usuarios = usuarioRepository
+                    .buscarUsernames(busqueda, securityIdentity.getPrincipal().getName())
+                    .stream()
+                    .map(UsuarioResumenResponse::new)
+                    .toList();
+
+            return Response.ok(Map.of("usuarios", usuarios)).build();
+        } catch (Exception exception) {
+            LOG.error("No se pudieron buscar usuarios registrados", exception);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(new ApiErrorResponse(
+                            "USER_SEARCH_FAILED",
+                            "query",
+                            "No pudimos buscar usuarios en este momento."
+                    ))
+                    .build();
+        }
+    }
 
     @GET
     @Path("/feed/{mi_id}")

@@ -5,6 +5,8 @@ import jakarta.inject.Inject;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.Values;
 
+import java.util.List;
+
 @ApplicationScoped
 public class UsuarioRepository {
 
@@ -63,6 +65,28 @@ public class UsuarioRepository {
                 }
                 return null;
             });
+        }
+    }
+
+    public List<String> buscarUsernames(String busqueda, String usernameActual) {
+        String query = """
+            MATCH (u:Usuario)
+            WHERE toLower(u.username) CONTAINS toLower($busqueda)
+              AND u.username <> $usernameActual
+              AND u.password_hash IS NOT NULL
+            RETURN u.username AS username
+            ORDER BY toLower(u.username)
+            LIMIT 10
+            """;
+
+        try (var session = driver.session()) {
+            return session.executeRead(tx -> tx.run(
+                    query,
+                    Values.parameters(
+                            "busqueda", busqueda,
+                            "usernameActual", usernameActual
+                    )
+            ).list(record -> record.get("username").asString()));
         }
     }
 

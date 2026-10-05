@@ -34,7 +34,14 @@ describe.each(routes)('ruta $path', ({ heading, level, path }) => {
   })
 })
 
-describe.each(['/feed', '/perfil'])('ruta protegida %s', (path) => {
+describe.each([
+  '/feed',
+  '/explorar',
+  '/notificaciones',
+  '/guardados',
+  '/comunidades',
+  '/perfil',
+])('ruta protegida %s', (path) => {
   it('regresa al inicio de sesión cuando no existe una sesión', async () => {
     renderApp(path)
 
@@ -42,6 +49,41 @@ describe.each(['/feed', '/perfil'])('ruta protegida %s', (path) => {
       await screen.findByRole('heading', { level: 2, name: 'Iniciar sesión' }),
     ).toBeInTheDocument()
   })
+})
+
+describe.each([
+  { path: '/explorar', link: 'Explorar', heading: 'Explorar' },
+  { path: '/guardados', link: 'Guardados', heading: 'Guardados' },
+  { path: '/comunidades', link: 'Comunidades', heading: 'Comunidades' },
+])('sección $path', ({ heading, link, path }) => {
+  it('se puede abrir desde la navegación protegida', () => {
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+    )
+    renderApp(path)
+
+    expect(screen.getByRole('heading', { level: 1, name: heading })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: link })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
+})
+
+it('muestra las notificaciones dentro del mismo layout protegido', () => {
+  localStorage.setItem(
+    AUTH_STORAGE_KEY,
+    JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+  )
+  renderApp('/notificaciones')
+
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Notificaciones' }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('link', { name: 'Notificaciones' }),
+  ).toHaveAttribute('aria-current', 'page')
 })
 
 it('muestra el destino protegido y permite cerrar sesión', async () => {

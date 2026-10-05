@@ -2,11 +2,16 @@ package com.redsocial.controller;
 
 import com.redsocial.dto.PushSubscriptionRequest;
 import com.redsocial.repository.PostRepository;
+import com.redsocial.repository.PushSubscriptionRepository;
+import com.redsocial.service.PushEndpointValidator;
 import com.redsocial.service.S3StorageService;
 import com.redsocial.service.WebPushService;
+import com.redsocial.service.WebPushGateway;
+import com.redsocial.service.WebPushGatewayImpl;
+import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.jwt.build.Jwt;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.neo4j.driver.Driver;
@@ -16,6 +21,8 @@ import org.neo4j.driver.Session;
 import org.neo4j.driver.TransactionCallback;
 import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.Values;
+import nl.martijndwars.webpush.PushService;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadBucketResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
@@ -23,19 +30,27 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import java.io.File;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
+import java.security.Security;
+import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 @QuarkusTest
 class WebPushIntegrationTest {
+
+    private final List<String> endpointsEntregados = new CopyOnWriteArrayList<>();
 
     @Inject
     PostRepository postRepository;
@@ -46,11 +61,42 @@ class WebPushIntegrationTest {
     @Inject
     WebPushService webPushService;
 
-    @Inject
-    WebPushController webPushController;
-
     @BeforeEach
     void configurarMocks() {
+        endpointsEntregados.clear();
+        QuarkusMock.installMockForType(new WebPushGatewayImpl() {
+            @Override
+            public int enviar(
+                    PushSubscriptionRequest subscription,
+                    com.redsocial.dto.PushNotificationPayload payload,
+                    String publicKey,
+                    String privateKey
+            ) {
+                endpointsEntregados.add(subscription.endpoint());
+                return 201;
+            }
+        }, WebPushGateway.class);
+        QuarkusMock.installMockForType(new PushEndpointValidator() {
+            @Override
+            public boolean esSeguro(String endpoint) {
+                return endpoint != null && endpoint.startsWith("https://");
+            }
+        }, PushEndpointValidator.class);
+        QuarkusMock.installMockForType(new PushSubscriptionRepository() {
+            @Override
+            public void guardar(PushSubscriptionRequest subscription) {
+            }
+
+            @Override
+            public boolean eliminar(String usuario, String endpoint) {
+                return false;
+            }
+
+            @Override
+            public List<PushSubscriptionRequest> obtenerTodas() {
+                return List.of();
+            }
+        }, PushSubscriptionRepository.class);
         S3Client s3Proxy = (S3Client) Proxy.newProxyInstance(
                 S3Client.class.getClassLoader(),
                 new Class[]{S3Client.class},
@@ -139,10 +185,20 @@ class WebPushIntegrationTest {
 
     @Test
     void testFlujoCompletoWebPushYVapid() throws Exception {
+        String tokenAnthony = tokenPara("anthony");
+        String tokenEstalin = tokenPara("estalin");
+
         // 1. Verificar generación de llaves VAPID
         assertNotNull(webPushService.getVapidPublicKey());
         assertNotNull(webPushService.getVapidPrivateKey());
         assertFalse(webPushService.getVapidPublicKey().isBlank());
+        assertEquals(32, Base64.getUrlDecoder().decode(webPushService.getVapidPrivateKey()).length);
+        Security.addProvider(new BouncyCastleProvider());
+        assertDoesNotThrow(() -> new PushService(
+                webPushService.getVapidPublicKey(),
+                webPushService.getVapidPrivateKey(),
+                "mailto:test@pachyweb.local"
+        ));
 
         given()
         .when()
@@ -153,12 +209,13 @@ class WebPushIntegrationTest {
 
         // 2. Suscribir seguidor 'anthony' con endpoint Web Push (201)
         PushSubscriptionRequest subAnthony = new PushSubscriptionRequest(
-                "anthony",
+                "usuario-manipulado",
                 "https://fcm.googleapis.com/fcm/send/demo-anthony",
                 Map.of("p256dh", "llave-p256dh", "auth", "llave-auth")
         );
 
         given()
+                .header("Authorization", "Bearer " + tokenAnthony)
                 .contentType("application/json")
                 .body(subAnthony)
         .when()
@@ -168,41 +225,130 @@ class WebPushIntegrationTest {
                 .body(containsString("Suscripción Web Push registrada exitosamente"));
 
         // 3. Validaciones de suscripción inválida (400)
-        try (Response rNull = webPushController.suscribir(null)) {
-            assertEquals(400, rNull.getStatus());
-        }
-
         given()
+                .header("Authorization", "Bearer " + tokenAnthony)
                 .contentType("application/json")
-                .body(new PushSubscriptionRequest(null, "https://endpoint", Map.of()))
         .when()
                 .post("/api/push/subscribe")
         .then()
                 .statusCode(400);
 
         given()
+                .header("Authorization", "Bearer " + tokenAnthony)
                 .contentType("application/json")
-                .body(new PushSubscriptionRequest("", "https://endpoint", Map.of()))
+                .body("""
+                        {
+                          "endpoint": "https://endpoint",
+                          "keys": {"p256dh": null, "auth": "llave-auth"}
+                        }
+                        """)
         .when()
                 .post("/api/push/subscribe")
         .then()
                 .statusCode(400);
 
         given()
+                .header("Authorization", "Bearer " + tokenAnthony)
                 .contentType("application/json")
-                .body(new PushSubscriptionRequest("anthony", null, Map.of()))
+                .body("""
+                        {
+                          "endpoint": "https://endpoint",
+                          "keys": {"p256dh": "llave-p256dh", "auth": null}
+                        }
+                        """)
         .when()
                 .post("/api/push/subscribe")
         .then()
                 .statusCode(400);
 
         given()
+                .header("Authorization", "Bearer " + tokenAnthony)
                 .contentType("application/json")
-                .body(new PushSubscriptionRequest("anthony", "   ", Map.of()))
+                .body(new PushSubscriptionRequest(
+                        null,
+                        "https://endpoint",
+                        Map.of("p256dh", "", "auth", "")
+                ))
         .when()
                 .post("/api/push/subscribe")
         .then()
                 .statusCode(400);
+
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+                .contentType("application/json")
+                .body(new PushSubscriptionRequest(
+                        null,
+                        null,
+                        Map.of("p256dh", "llave-p256dh", "auth", "llave-auth")
+                ))
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(400);
+
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+                .contentType("application/json")
+                .body(new PushSubscriptionRequest(
+                        null,
+                        "   ",
+                        Map.of("p256dh", "llave-p256dh", "auth", "llave-auth")
+                ))
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(400);
+
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+                .contentType("application/json")
+                .body(new PushSubscriptionRequest(
+                        null,
+                        "http://127.0.0.1/notificaciones",
+                        Map.of("p256dh", "llave-p256dh", "auth", "llave-auth")
+                ))
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(400)
+                .body("code", org.hamcrest.CoreMatchers.equalTo("INVALID_PUSH_ENDPOINT"));
+
+        given()
+                .contentType("application/json")
+                .body(subAnthony)
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(401);
+
+        PushSubscriptionRequest subEstalin = new PushSubscriptionRequest(
+                null,
+                subAnthony.endpoint(),
+                subAnthony.keys()
+        );
+        given()
+                .header("Authorization", "Bearer " + tokenEstalin)
+                .contentType("application/json")
+                .body(subEstalin)
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(201);
+
+        PushSubscriptionRequest segundoNavegadorEstalin = new PushSubscriptionRequest(
+                null,
+                "https://push.example/estalin-segundo-navegador",
+                subAnthony.keys()
+        );
+        given()
+                .header("Authorization", "Bearer " + tokenEstalin)
+                .contentType("application/json")
+                .body(segundoNavegadorEstalin)
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(201);
 
         // 4. Crear nueva publicación de 'carlos' -> busca seguidores en Neo4j y emite Push a 'anthony' y 'estalin'
         File tempFile = Files.createTempFile("push_post", ".jpg").toFile();
@@ -220,31 +366,64 @@ class WebPushIntegrationTest {
 
         // 5. Verificar que 'anthony' (con suscripción) y 'estalin' (sin suscripción previa) recibieron el evento Push
         given()
+                .header("Authorization", "Bearer " + tokenAnthony)
         .when()
                 .get("/api/push/notificaciones/anthony")
         .then()
                 .statusCode(200)
                 .body(containsString("Publicacion que dispara Web Push"))
-                .body(containsString("https://fcm.googleapis.com/fcm/send/demo-anthony"));
+                .body(containsString("webpush://pendiente/anthony"));
 
         given()
+                .header("Authorization", "Bearer " + tokenEstalin)
         .when()
                 .get("/api/push/notificaciones/estalin")
         .then()
                 .statusCode(200)
-                .body(containsString("Publicacion que dispara Web Push"));
+                .body(containsString("Publicacion que dispara Web Push"))
+                .body(containsString(subAnthony.endpoint()));
+        assertEquals(2, endpointsEntregados.size());
+        assertTrue(endpointsEntregados.contains(subAnthony.endpoint()));
+        assertTrue(endpointsEntregados.contains(segundoNavegadorEstalin.endpoint()));
 
         // 6. Eliminar suscripción existente (200) e inexistente (404)
         given()
+                .header("Authorization", "Bearer " + tokenEstalin)
+                .queryParam("endpoint", subAnthony.endpoint())
         .when()
-                .delete("/api/push/subscribe/anthony")
+                .delete("/api/push/subscribe")
         .then()
                 .statusCode(200);
 
         given()
+                .header("Authorization", "Bearer " + tokenEstalin)
+                .queryParam("endpoint", subAnthony.endpoint())
         .when()
-                .delete("/api/push/subscribe/no_existe")
+                .delete("/api/push/subscribe")
         .then()
                 .statusCode(404);
+
+        endpointsEntregados.clear();
+        webPushService.notificarSeguidoresNuevaPublicacion(
+                "carlos",
+                "post-segundo-navegador",
+                "Solo debe llegar al navegador que permanece suscrito"
+        );
+        assertEquals(List.of(segundoNavegadorEstalin.endpoint()), endpointsEntregados);
+
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+        .when()
+                .get("/api/push/notificaciones/estalin")
+        .then()
+                .statusCode(403);
+    }
+
+    private String tokenPara(String username) {
+        return Jwt.issuer("https://redsocial.com/issuer")
+                .upn(username)
+                .groups("Usuario")
+                .expiresIn(Duration.ofMinutes(5))
+                .sign();
     }
 }

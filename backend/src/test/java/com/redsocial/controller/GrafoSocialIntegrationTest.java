@@ -1,6 +1,7 @@
 package com.redsocial.controller;
 
 import com.redsocial.repository.GrafoSocialRepository;
+import io.smallrye.jwt.build.Jwt;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
 
 import java.lang.reflect.Proxy;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.restassured.RestAssured.given;
@@ -186,5 +188,30 @@ class GrafoSocialIntegrationTest {
                 .get("/api/usuarios/error_db/sugerencias")
         .then()
                 .statusCode(500);
+    }
+
+    @Test
+    void exigeUnaSesionParaBuscarUsuariosRegistrados() {
+        given()
+                .queryParam("query", "")
+        .when()
+                .get("/api/usuarios")
+        .then()
+                .statusCode(401);
+
+        String token = Jwt.issuer("https://redsocial.com/issuer")
+                .upn("oscar")
+                .groups("Usuario")
+                .expiresIn(Duration.ofMinutes(5))
+                .sign();
+
+        given()
+                .auth().oauth2(token)
+                .queryParam("query", "")
+        .when()
+                .get("/api/usuarios")
+        .then()
+                .statusCode(200)
+                .body(containsString("usuarios"));
     }
 }

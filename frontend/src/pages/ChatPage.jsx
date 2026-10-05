@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import BrandMark from '../components/BrandMark.jsx'
 import useAuth from '../hooks/useAuth.js'
 import useChat from '../hooks/useChat.js'
+import { searchRegisteredUsers } from '../services/users.js'
 import { CHAT_CONNECTION_STATUS } from '../services/websocket.js'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
+
+const USER_SEARCH_DELAY = 250
 
 const statusLabels = {
   [CHAT_CONNECTION_STATUS.connecting]: 'Conectando…',
@@ -24,14 +27,18 @@ function formatMessageTime(timestamp) {
 
 function ChatPage() {
   const { user } = useAuth()
-  const { connectionError, messages, sendMessage, status } = useChat()
-  const [recipient, setRecipient] = useState('')
+  const { connectionError, deliveryError, messages, sendMessage, status } = useChat()
+  const [recipientQuery, setRecipientQuery] = useState('')
+  const [selectedRecipient, setSelectedRecipient] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState('')
   const [content, setContent] = useState('')
   const [sendError, setSendError] = useState('')
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false)
   const recipientInputRef = useRef(null)
   const messagesEndRef = useRef(null)
-  const activeRecipient = recipient.trim()
+  const activeRecipient = selectedRecipient
   const isConnected = status === CHAT_CONNECTION_STATUS.connected
   const statusLabel = statusLabels[status] ?? 'Sin conexión'
   const newestMessage = messages.at(-1)
@@ -68,6 +75,37 @@ function ChatPage() {
     return [...conversationsByUsername.values()].reverse()
   }, [activeRecipient, messages, user?.username])
 
+  useEffect(() => {
+    const query = recipientQuery.trim()
+    if (!query || query === selectedRecipient) {
+      return undefined
+    }
+
+    const abortController = new AbortController()
+    const searchTimeout = window.setTimeout(async () => {
+      try {
+        const users = await searchRegisteredUsers(query, {
+          signal: abortController.signal,
+        })
+        setSearchResults(users)
+      } catch {
+        if (!abortController.signal.aborted) {
+          setSearchResults([])
+          setSearchError('No pudimos buscar usuarios en este momento.')
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsSearching(false)
+        }
+      }
+    }, USER_SEARCH_DELAY)
+
+    return () => {
+      window.clearTimeout(searchTimeout)
+      abortController.abort()
+    }
+  }, [recipientQuery, selectedRecipient])
+
   const activeMessages = useMemo(() => {
     if (!activeRecipient) return []
 
@@ -85,7 +123,10 @@ function ChatPage() {
   }, [activeMessages])
 
   const startNewConversation = () => {
-    setRecipient('')
+    setRecipientQuery('')
+    setSelectedRecipient('')
+    setSearchResults([])
+    setSearchError('')
     setContent('')
     setSendError('')
     setIsMobileChatOpen(false)
@@ -96,16 +137,26 @@ function ChatPage() {
     if (username !== activeRecipient) {
       setContent('')
     }
-    setRecipient(username)
+    setRecipientQuery(username)
+    setSelectedRecipient(username)
+    setSearchResults([])
+    setSearchError('')
     setSendError('')
     setIsMobileChatOpen(true)
   }
 
   const changeRecipient = (nextRecipient) => {
-    if (nextRecipient.trim() !== activeRecipient) {
+    const normalizedRecipient = nextRecipient.trim()
+    if (normalizedRecipient !== activeRecipient) {
       setContent('')
+      setSelectedRecipient('')
     }
-    setRecipient(nextRecipient)
+    setRecipientQuery(nextRecipient)
+    setSearchResults([])
+    setIsSearching(
+      Boolean(normalizedRecipient) && normalizedRecipient !== activeRecipient,
+    )
+    setSearchError('')
     setSendError('')
   }
 
@@ -113,7 +164,7 @@ function ChatPage() {
     setSendError('')
 
     try {
-      sendMessage(recipient, content)
+      sendMessage(activeRecipient, content)
       setContent('')
     } catch (error) {
       setSendError(error.message)
@@ -148,25 +199,52 @@ function ChatPage() {
           <div>
             <span className="conversation-list__mobile-brand"><BrandMark /></span>
             <h1>Mensajes</h1>
-            <p>Chat en tiempo real</p>
+            <p>Mensajes disponibles aunque cierres sesión</p>
           </div>
           <button type="button" aria-label="Nueva conversación" onClick={startNewConversation}>＋</button>
         </header>
 
         <div className="chat-recipient">
-          <label htmlFor="chat-recipient">Enviar mensajes a</label>
-          <div>
+          <label htmlFor="chat-recipient">Buscar usuario registrado</label>
+          <div className="chat-recipient__field">
             <span aria-hidden="true">@</span>
             <input
               id="chat-recipient"
               ref={recipientInputRef}
               type="text"
-              value={recipient}
+              value={recipientQuery}
               placeholder="nombre_de_usuario"
               autoComplete="off"
               onChange={({ target }) => changeRecipient(target.value)}
             />
           </div>
+          {isSearching && (
+            <p className="chat-recipient__status" role="status">Buscando usuarios…</p>
+          )}
+          {searchError && (
+            <p className="chat-recipient__error" role="alert">{searchError}</p>
+          )}
+          {!isSearching && !searchError && recipientQuery.trim() &&
+            !activeRecipient && searchResults.length === 0 && (
+              <p className="chat-recipient__status">No encontramos un usuario registrado con ese nombre.</p>
+          )}
+          {searchResults.length > 0 && (
+            <ul className="chat-recipient__results" aria-label="Usuarios registrados">
+              {searchResults.map(({ username }) => (
+                <li key={username}>
+                  <button type="button" onClick={() => selectConversation(username)}>
+                    <span className="messages-avatar" aria-hidden="true">
+                      {getInitial(username)}
+                    </span>
+                    <span>
+                      <strong>{formatDisplayName(username)}</strong>
+                      <small>@{username}</small>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="conversation-list__summary">
@@ -236,9 +314,9 @@ function ChatPage() {
           </p>
         </header>
 
-        {(connectionError || sendError) && (
+        {(connectionError || deliveryError || sendError) && (
           <p className="form-message form-message--error chat-alert" role="alert">
-            {sendError || connectionError}
+            {sendError || deliveryError || connectionError}
           </p>
         )}
 
@@ -251,7 +329,7 @@ function ChatPage() {
             <div className="chat-empty">
               <span aria-hidden="true">✉</span>
               <h2>Inicia una conversación</h2>
-              <p>Elige un usuario y envíale un mensaje. La respuesta aparecerá aquí al instante.</p>
+              <p>Elige un usuario y envíale un mensaje. Si está desconectado, lo verá cuando vuelva.</p>
             </div>
           ) : (
             <>
@@ -290,8 +368,14 @@ function ChatPage() {
               id="chat-message"
               rows="1"
               value={content}
-              placeholder={isConnected ? 'Escribe un mensaje…' : 'Esperando conexión…'}
-              disabled={!isConnected}
+              placeholder={
+                isConnected && activeRecipient
+                  ? 'Escribe un mensaje…'
+                  : isConnected
+                    ? 'Selecciona un usuario registrado…'
+                    : 'Esperando conexión…'
+              }
+              disabled={!isConnected || !activeRecipient}
               onChange={({ target }) => {
                 setContent(target.value)
                 setSendError('')

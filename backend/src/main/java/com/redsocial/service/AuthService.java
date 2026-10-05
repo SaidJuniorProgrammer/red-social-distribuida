@@ -1,24 +1,26 @@
 package com.redsocial.service;
 
+import com.redsocial.dto.LoginRequest;
 import com.redsocial.dto.RegisterRequest;
 import com.redsocial.exception.InvalidCredentialsException;
 import com.redsocial.exception.RegistrationConflictException;
 import com.redsocial.exception.RegistrationValidationException;
 import com.redsocial.repository.UsuarioRepository;
+import io.smallrye.jwt.build.Jwt;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.mindrot.jbcrypt.BCrypt;
 import org.neo4j.driver.exceptions.ClientException;
-import java.util.UUID;
-import com.redsocial.dto.LoginRequest;
-import io.smallrye.jwt.build.Jwt;
+
 import java.time.Duration;
 import java.util.Locale;
+import java.util.UUID;
 
 @ApplicationScoped
 public class AuthService {
 
     private static final int MIN_PASSWORD_LENGTH = 8;
+    private static final Duration SESSION_DURATION = Duration.ofMinutes(10);
     private static final String CONSTRAINT_VALIDATION_FAILED =
             "Neo.ClientError.Schema.ConstraintValidationFailed";
 
@@ -71,7 +73,7 @@ public class AuthService {
         return Jwt.issuer("https://redsocial.com/issuer")
                   .upn(username)
                   .groups("Usuario")
-                  .expiresIn(Duration.ofHours(24))
+                  .expiresIn(SESSION_DURATION)
                   .sign();
     }
 

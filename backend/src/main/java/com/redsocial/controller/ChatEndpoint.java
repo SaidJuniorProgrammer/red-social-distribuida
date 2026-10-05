@@ -1,7 +1,10 @@
 package com.redsocial.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.redsocial.dto.ChatDeliveryError;
+import com.redsocial.dto.ChatHistory;
 import com.redsocial.dto.ChatMessage;
+import com.redsocial.repository.ChatRepository;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.websockets.next.OnClose;
@@ -10,13 +13,16 @@ import io.quarkus.websockets.next.OnOpen;
 import io.quarkus.websockets.next.OnTextMessage;
 import io.quarkus.websockets.next.WebSocket;
 import io.quarkus.websockets.next.WebSocketConnection;
+import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Authenticated
@@ -34,17 +40,32 @@ public class ChatEndpoint {
     @Inject
     SecurityIdentity securityIdentity;
 
+    @Inject
+    ChatRepository chatRepository;
+
     @OnOpen
+    @Blocking
     public Uni<Void> onOpen(WebSocketConnection connection) {
         String username = usernameAutenticado();
         WebSocketConnection sesionAnterior = sesiones.put(username, connection);
         LOG.infof("Usuario conectado al chat: %s", username);
 
+        Uni<Void> cerrarSesionAnterior = Uni.createFrom().voidItem();
+
         if (sesionAnterior != null && !sesionAnterior.equals(connection)) {
-            return sesionAnterior.close();
+            cerrarSesionAnterior = sesionAnterior.close();
         }
 
-        return Uni.createFrom().voidItem();
+        try {
+            List<ChatMessage> historial = chatRepository.obtenerHistorial(username);
+            String payload = objectMapper.writeValueAsString(
+                    new ChatHistory("history", historial)
+            );
+            return cerrarSesionAnterior.chain(() -> connection.sendText(payload));
+        } catch (Exception exception) {
+            LOG.errorf(exception, "No se pudo cargar el historial de %s", username);
+            return cerrarSesionAnterior;
+        }
     }
 
     @OnClose
@@ -59,7 +80,8 @@ public class ChatEndpoint {
     }
 
     @OnTextMessage
-    public Uni<Void> onMessage(String rawMessage) {
+    @Blocking
+    public Uni<Void> onMessage(String rawMessage, WebSocketConnection connection) {
         try {
             ChatMessage entrante = objectMapper.readValue(rawMessage, ChatMessage.class);
 
@@ -68,27 +90,49 @@ public class ChatEndpoint {
                 return Uni.createFrom().voidItem();
             }
 
-            String fecha = (entrante.timestamp() == null || entrante.timestamp().isBlank())
-                    ? Instant.now().toString()
-                    : entrante.timestamp().trim();
-
             ChatMessage mensajeNormalizado = new ChatMessage(
+                    UUID.randomUUID().toString(),
                     usernameAutenticado(),
                     entrante.destinatario_id().trim(),
                     entrante.contenido().trim(),
-                    fecha
+                    Instant.now().toString()
             );
 
-            WebSocketConnection sesionDestinatario = sesiones.get(mensajeNormalizado.destinatario_id());
-            if (sesionDestinatario == null) {
-                return Uni.createFrom().voidItem();
+            var mensajeGuardado = chatRepository.guardar(mensajeNormalizado);
+            if (mensajeGuardado.isEmpty()) {
+                return enviarErrorDeEntrega(
+                        connection,
+                        mensajeNormalizado.destinatario_id(),
+                        "No se pudo enviar el mensaje porque el usuario no existe."
+                );
             }
 
-            String payloadJson = objectMapper.writeValueAsString(mensajeNormalizado);
-            return sesionDestinatario.sendText(payloadJson);
+            ChatMessage mensaje = mensajeGuardado.get();
+            String payloadJson = objectMapper.writeValueAsString(mensaje);
+            WebSocketConnection sesionDestinatario = sesiones.get(mensajeNormalizado.destinatario_id());
+            if (sesionDestinatario == null || sesionDestinatario.equals(connection)) {
+                return connection.sendText(payloadJson);
+            }
+
+            Uni<Void> entregaDestinatario = sesionDestinatario.sendText(payloadJson)
+                    .onFailure()
+                    .recoverWithUni(failure -> {
+                        LOG.warnf(
+                                "El mensaje quedó guardado para %s, pero no se pudo entregar en vivo: %s",
+                                mensajeNormalizado.destinatario_id(),
+                                failure.getMessage()
+                        );
+                        sesiones.remove(mensajeNormalizado.destinatario_id(), sesionDestinatario);
+                        return Uni.createFrom().voidItem();
+                    });
+            return entregaDestinatario.chain(() -> connection.sendText(payloadJson));
         } catch (Exception exception) {
             LOG.error("No se pudo procesar ni rutear el mensaje de chat", exception);
-            return Uni.createFrom().voidItem();
+            return enviarErrorDeEntrega(
+                    connection,
+                    "",
+                    "No pudimos guardar el mensaje. Inténtalo nuevamente."
+            );
         }
     }
 
@@ -98,6 +142,24 @@ public class ChatEndpoint {
 
     private String usernameAutenticado() {
         return securityIdentity.getPrincipal().getName();
+    }
+
+    private Uni<Void> enviarErrorDeEntrega(
+            WebSocketConnection connection,
+            String destinatario,
+            String message
+    ) {
+        try {
+            String payload = objectMapper.writeValueAsString(new ChatDeliveryError(
+                    "delivery_error",
+                    destinatario,
+                    message
+            ));
+            return connection.sendText(payload);
+        } catch (Exception exception) {
+            LOG.error("No se pudo informar el error de entrega", exception);
+            return Uni.createFrom().voidItem();
+        }
     }
 
     private void eliminarSesion(WebSocketConnection connection) {

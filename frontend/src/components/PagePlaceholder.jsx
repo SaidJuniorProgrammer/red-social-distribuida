@@ -1,5 +1,5 @@
 /**
- * Renderiza el contenido provisional de una ruta todavía no implementada.
+ * Renderiza el contenido provisional de una sección disponible en la navegación.
  *
  * @param {{ description: string, title: string }} props Contenido de la página.
  * @returns {import('react').JSX.Element} Página provisional.

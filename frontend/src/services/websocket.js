@@ -81,9 +81,17 @@ export function parseChatMessage(rawMessage) {
 }
 
 export class ChatWebSocketClient {
-  constructor({ onMessage, onStatusChange, token, username, WebSocketImpl }) {
+  constructor({
+    onDeliveryError,
+    onMessage,
+    onStatusChange,
+    token,
+    username,
+    WebSocketImpl,
+  }) {
     this.token = token
     this.username = username
+    this.onDeliveryError = onDeliveryError
     this.onMessage = onMessage
     this.onStatusChange = onStatusChange
     this.WebSocketImpl = WebSocketImpl ?? globalThis.WebSocket
@@ -118,6 +126,21 @@ export class ChatWebSocketClient {
       if (this.socket !== socket) return
 
       try {
+        const event = JSON.parse(data)
+        if (event?.type === 'delivery_error') {
+          this.onDeliveryError?.(
+            event.message || 'No se pudo entregar el mensaje.',
+          )
+          return
+        }
+
+        if (event?.type === 'history' && Array.isArray(event.messages)) {
+          event.messages.forEach((message) => {
+            this.onMessage?.(parseChatMessage(JSON.stringify(message)))
+          })
+          return
+        }
+
         this.onMessage?.(parseChatMessage(data))
       } catch {
         this.onStatusChange?.(

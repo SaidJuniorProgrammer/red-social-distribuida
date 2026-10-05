@@ -13,6 +13,7 @@ function ChatProvider({ children }) {
   const [messages, setMessages] = useState([])
   const [status, setStatus] = useState(CHAT_CONNECTION_STATUS.disconnected)
   const [connectionError, setConnectionError] = useState('')
+  const [deliveryError, setDeliveryError] = useState('')
   const clientRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
   const shouldReconnectRef = useRef(false)
@@ -29,12 +30,14 @@ function ChatProvider({ children }) {
         token,
         username: user.username,
         onMessage: (message) => {
+          setDeliveryError('')
           setMessages((currentMessages) =>
             currentMessages.some(({ id }) => id === message.id)
               ? currentMessages
               : [...currentMessages, message],
           )
         },
+        onDeliveryError: setDeliveryError,
         onStatusChange: (nextStatus, errorMessage = '') => {
           setStatus(nextStatus)
           if (errorMessage || nextStatus === CHAT_CONNECTION_STATUS.connected) {
@@ -73,6 +76,7 @@ function ChatProvider({ children }) {
       clientRef.current = null
       setMessages([])
       setConnectionError('')
+      setDeliveryError('')
     }
   }, [isAuthenticated, token, user?.username])
 
@@ -84,6 +88,7 @@ function ChatProvider({ children }) {
       throw new Error('El destinatario y el mensaje son obligatorios.')
     }
 
+    setDeliveryError('')
     const sentMessage = clientRef.current?.sendMessage(
       normalizedRecipient,
       normalizedContent,
@@ -93,17 +98,12 @@ function ChatProvider({ children }) {
       throw new Error('El chat todavía no está conectado.')
     }
 
-    setMessages((currentMessages) =>
-      currentMessages.some(({ id }) => id === sentMessage.id)
-        ? currentMessages
-        : [...currentMessages, sentMessage],
-    )
     return sentMessage
   }, [])
 
   const value = useMemo(
-    () => ({ connectionError, messages, sendMessage, status }),
-    [connectionError, messages, sendMessage, status],
+    () => ({ connectionError, deliveryError, messages, sendMessage, status }),
+    [connectionError, deliveryError, messages, sendMessage, status],
   )
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>

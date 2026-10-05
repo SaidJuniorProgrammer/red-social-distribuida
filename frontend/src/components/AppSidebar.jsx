@@ -5,11 +5,11 @@ import BrandMark from './BrandMark.jsx'
 
 const navigationItems = [
   { icon: '⌂', label: 'Inicio', to: '/feed' },
-  { icon: '#', label: 'Explorar' },
-  { icon: '♡', label: 'Notificaciones' },
+  { icon: '#', label: 'Explorar', to: '/explorar' },
+  { icon: '♡', label: 'Notificaciones', to: '/notificaciones' },
   { icon: '✉', label: 'Mensajes', to: '/chat' },
-  { icon: '▣', label: 'Guardados' },
-  { icon: '◎', label: 'Comunidades' },
+  { icon: '▣', label: 'Guardados', to: '/guardados' },
+  { icon: '◎', label: 'Comunidades', to: '/comunidades' },
   { icon: '○', label: 'Perfil', to: '/perfil' },
 ]
 
@@ -32,7 +32,7 @@ function AppSidebar() {
             </>
           )
 
-          return item.to ? (
+          return (
             <NavLink
               className={({ isActive }) => (
                 isActive ? 'messages-sidebar__active' : undefined
@@ -43,10 +43,6 @@ function AppSidebar() {
             >
               {content}
             </NavLink>
-          ) : (
-            <span className="messages-sidebar__item" key={item.label}>
-              {content}
-            </span>
           )
         })}
       </nav>

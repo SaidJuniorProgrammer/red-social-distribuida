@@ -76,6 +76,9 @@ afterEach(() => {
 
 it('conecta al iniciar sesión y actualiza el chat sin recargar la página', async () => {
   vi.spyOn(api, 'post').mockResolvedValue({ data: { token: 'jwt-prueba' } })
+  vi.spyOn(api, 'get').mockResolvedValue({
+    data: { usuarios: [{ username: 'said' }] },
+  })
   renderApp()
 
   fireEvent.change(screen.getByLabelText('Nombre de usuario'), {
@@ -105,23 +108,33 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
   )
   expect(screen.getByRole('status')).toHaveTextContent('En línea')
 
-  fireEvent.change(screen.getByLabelText('Enviar mensajes a'), {
+  fireEvent.change(screen.getByLabelText('Buscar usuario registrado'), {
     target: { value: 'said' },
   })
-  fireEvent.click(screen.getByRole('button', { name: /Said.*@said/ }))
+  fireEvent.click(await screen.findByRole('button', { name: /Said.*@said/ }))
+  fireEvent.change(screen.getByLabelText('Buscar usuario registrado'), {
+    target: { value: 'said ' },
+  })
+  expect(screen.queryByText('Buscando usuarios…')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Volver a conversaciones' }))
   fireEvent.change(screen.getByLabelText('Mensaje'), {
     target: { value: 'Hola desde React' },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
-  expect(screen.getAllByText('Hola desde React')).not.toHaveLength(0)
+  expect(screen.queryByText('Hola desde React')).not.toBeInTheDocument()
   expect(JSON.parse(socket.sentMessages[0])).toMatchObject({
     destinatario_id: 'said',
     contenido: 'Hola desde React',
   })
 
   await act(async () => {
+    socket.receive({
+      emisor_id: 'oscar',
+      destinatario_id: 'said',
+      contenido: 'Hola desde React',
+      timestamp: '2026-10-01T15:29:00Z',
+    })
     socket.receive({
       emisor_id: 'said',
       destinatario_id: 'oscar',
@@ -173,11 +186,11 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
   expect(conversationCards[0]).toHaveTextContent('@said')
 
   fireEvent.click(screen.getByRole('button', { name: 'Nueva conversación' }))
-  expect(screen.getByLabelText('Enviar mensajes a')).toHaveValue('')
-  fireEvent.change(screen.getByLabelText('Enviar mensajes a'), {
+  expect(screen.getByLabelText('Buscar usuario registrado')).toHaveValue('')
+  fireEvent.change(screen.getByLabelText('Buscar usuario registrado'), {
     target: { value: 'said' },
   })
-  fireEvent.click(screen.getByRole('button', { name: /Said.*@said/ }))
+  fireEvent.click(await screen.findByRole('button', { name: /Said.*@said/ }))
   fireEvent.change(screen.getByLabelText('Mensaje'), {
     target: { value: 'Enviado con Enter' },
   })
@@ -193,11 +206,50 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
     contenido: 'Enviado con Enter',
   })
 
+  await act(async () => {
+    socket.receive({
+      type: 'delivery_error',
+      destinatario_id: 'said',
+      message: 'No se pudo enviar el mensaje porque el usuario no existe.',
+    })
+  })
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'No se pudo enviar el mensaje porque el usuario no existe.',
+  )
+
   fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
   expect(socket.closeArgs).toEqual([1000, 'Sesión finalizada'])
   expect(
     await screen.findByRole('heading', { name: 'Iniciar sesión' }),
   ).toBeInTheDocument()
+})
+
+it('no permite enviar mensajes a una cuenta que no está registrada', async () => {
+  vi.spyOn(api, 'post').mockResolvedValue({ data: { token: 'jwt-prueba' } })
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { usuarios: [] } })
+  renderApp()
+
+  fireEvent.change(screen.getByLabelText('Nombre de usuario'), {
+    target: { value: 'oscar' },
+  })
+  fireEvent.change(screen.getByLabelText('Contraseña'), {
+    target: { value: 'password123' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+
+  await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1))
+  await act(async () => MockWebSocket.instances[0].open())
+  fireEvent.click(screen.getByRole('link', { name: 'Mensajes' }))
+  fireEvent.change(screen.getByLabelText('Buscar usuario registrado'), {
+    target: { value: 'usuario_fantasma' },
+  })
+
+  expect(await screen.findByText(
+    'No encontramos un usuario registrado con ese nombre.',
+  )).toBeInTheDocument()
+  expect(screen.getByLabelText('Mensaje')).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
+  expect(MockWebSocket.instances[0].sentMessages).toHaveLength(0)
 })
 
 it('conserva el error cuando el navegador cierra la conexión', async () => {

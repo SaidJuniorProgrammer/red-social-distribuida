@@ -3,9 +3,11 @@ package com.redsocial.service;
 import com.redsocial.dto.PushNotificationPayload;
 import com.redsocial.dto.PushSubscriptionRequest;
 import com.redsocial.repository.PostRepository;
+import com.redsocial.repository.PushSubscriptionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import java.security.KeyPair;
@@ -18,6 +20,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -29,15 +32,36 @@ public class WebPushService {
     @Inject
     PostRepository postRepository;
 
+    @Inject
+    WebPushGateway webPushGateway;
+
+    @Inject
+    PushSubscriptionRepository pushSubscriptionRepository;
+
+    @ConfigProperty(name = "webpush.vapid.public-key")
+    Optional<String> configuredPublicKey;
+
+    @ConfigProperty(name = "webpush.vapid.private-key")
+    Optional<String> configuredPrivateKey;
+
     private String vapidPublicKey;
     private String vapidPrivateKey;
 
-    private final Map<String, PushSubscriptionRequest> suscripciones = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, PushSubscriptionRequest>> suscripciones = new ConcurrentHashMap<>();
     private final Map<String, List<PushNotificationPayload>> bandejaPush = new ConcurrentHashMap<>();
 
     @PostConstruct
     void init() {
-        generarLlavesVapid();
+        if (configuredPublicKey.filter(key -> !key.isBlank()).isPresent()
+                && configuredPrivateKey.filter(key -> !key.isBlank()).isPresent()) {
+            vapidPublicKey = configuredPublicKey.get().trim();
+            vapidPrivateKey = configuredPrivateKey.get().trim();
+        } else {
+            generarLlavesVapid();
+            LOG.warn("Se generaron llaves VAPID temporales. Configura VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY en producción.");
+        }
+
+        restaurarSuscripciones();
     }
 
     public void generarLlavesVapid() {
@@ -50,7 +74,7 @@ public class WebPushService {
             byte[] uncompressedPoint = Arrays.copyOfRange(pubEncoded, pubEncoded.length - 65, pubEncoded.length);
 
             ECPrivateKey privKey = (ECPrivateKey) keyPair.getPrivate();
-            byte[] privBytes = privKey.getS().toByteArray();
+            byte[] privBytes = normalizarLlavePrivada(privKey.getS().toByteArray());
 
             Base64.Encoder urlEncoder = Base64.getUrlEncoder().withoutPadding();
             this.vapidPublicKey = urlEncoder.encodeToString(uncompressedPoint);
@@ -69,11 +93,37 @@ public class WebPushService {
     }
 
     public void registrarSuscripcion(PushSubscriptionRequest request) {
-        suscripciones.put(request.usuario().trim(), request);
+        String username = request.usuario().trim();
+        PushSubscriptionRequest normalizedRequest = new PushSubscriptionRequest(
+                username,
+                request.endpoint().trim(),
+                request.keys()
+        );
+        pushSubscriptionRepository.guardar(normalizedRequest);
+        suscripciones.forEach((registeredUser, userSubscriptions) -> {
+            if (!registeredUser.equals(username)) {
+                userSubscriptions.remove(normalizedRequest.endpoint());
+            }
+        });
+        suscripciones.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+        suscripciones.computeIfAbsent(username, ignored -> new ConcurrentHashMap<>())
+                .put(normalizedRequest.endpoint(), normalizedRequest);
     }
 
-    public boolean eliminarSuscripcion(String usuario) {
-        return suscripciones.remove(usuario.trim()) != null;
+    public boolean eliminarSuscripcion(String usuario, String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) {
+            return false;
+        }
+
+        String normalizedUsername = usuario.trim();
+        String normalizedEndpoint = endpoint.trim();
+        Map<String, PushSubscriptionRequest> userSubscriptions = suscripciones.get(normalizedUsername);
+        boolean removed = userSubscriptions != null && userSubscriptions.remove(normalizedEndpoint) != null;
+        if (userSubscriptions != null && userSubscriptions.isEmpty()) {
+            suscripciones.remove(normalizedUsername, userSubscriptions);
+        }
+        boolean removedFromDatabase = pushSubscriptionRepository.eliminar(normalizedUsername, normalizedEndpoint);
+        return removed || removedFromDatabase;
     }
 
     public List<PushNotificationPayload> notificarSeguidoresNuevaPublicacion(String autor, String idPost, String texto) {
@@ -84,22 +134,49 @@ public class WebPushService {
         String ahora = Instant.now().toString();
 
         for (String seguidor : seguidores) {
-            PushSubscriptionRequest sub = suscripciones.get(seguidor);
-            String endpointDestino = (sub != null && sub.endpoint() != null) ? sub.endpoint() : "webpush://pendiente/" + seguidor;
-
-            PushNotificationPayload payload = new PushNotificationPayload(
-                    idPost,
-                    autor,
-                    seguidor,
-                    titulo,
-                    texto,
-                    endpointDestino,
-                    ahora
+            List<PushSubscriptionRequest> userSubscriptions = new ArrayList<>(
+                    suscripciones.getOrDefault(seguidor, Map.of()).values()
             );
+            if (userSubscriptions.isEmpty()) {
+                PushNotificationPayload pending = crearPayload(
+                        idPost, autor, seguidor, titulo, texto,
+                        "webpush://pendiente/" + seguidor, ahora
+                );
+                bandejaPush.computeIfAbsent(seguidor, ignored -> new CopyOnWriteArrayList<>()).add(pending);
+                emitidos.add(pending);
+                continue;
+            }
 
-            bandejaPush.computeIfAbsent(seguidor, k -> new CopyOnWriteArrayList<>()).add(payload);
-            emitidos.add(payload);
-            LOG.infof("Evento Web Push emitido a seguidor %s (%s)", seguidor, endpointDestino);
+            PushNotificationPayload inboxPayload = crearPayload(
+                    idPost, autor, seguidor, titulo, texto,
+                    userSubscriptions.get(0).endpoint(), ahora
+            );
+            for (PushSubscriptionRequest subscription : userSubscriptions) {
+                PushNotificationPayload payload = crearPayload(
+                        idPost, autor, seguidor, titulo, texto,
+                        subscription.endpoint(), ahora
+                );
+                emitidos.add(payload);
+                try {
+                    int statusCode = webPushGateway.enviar(
+                            subscription,
+                            payload,
+                            vapidPublicKey,
+                            vapidPrivateKey
+                    );
+                    if (statusCode >= 200 && statusCode < 300) {
+                        LOG.infof("Web Push enviado a %s (%s)", seguidor, subscription.endpoint());
+                    } else if (statusCode == 404 || statusCode == 410) {
+                        eliminarSuscripcion(seguidor, subscription.endpoint());
+                        LOG.infof("Se eliminó una suscripción Web Push vencida de %s", seguidor);
+                    } else {
+                        LOG.warnf("El servicio Push respondió %d para %s", statusCode, seguidor);
+                    }
+                } catch (Exception exception) {
+                    LOG.warnf("No se pudo enviar Web Push a %s: %s", seguidor, exception.getMessage());
+                }
+            }
+            bandejaPush.computeIfAbsent(seguidor, ignored -> new CopyOnWriteArrayList<>()).add(inboxPayload);
         }
 
         return emitidos;
@@ -107,5 +184,46 @@ public class WebPushService {
 
     public List<PushNotificationPayload> obtenerNotificacionesDeUsuario(String usuario) {
         return bandejaPush.getOrDefault(usuario.trim(), List.of());
+    }
+
+    void restaurarSuscripciones() {
+        try {
+            for (PushSubscriptionRequest subscription : pushSubscriptionRepository.obtenerTodas()) {
+                suscripciones.computeIfAbsent(
+                        subscription.usuario(),
+                        ignored -> new ConcurrentHashMap<>()
+                ).put(subscription.endpoint(), subscription);
+            }
+        } catch (Exception exception) {
+            LOG.warnf("No se pudieron restaurar las suscripciones Web Push: %s", exception.getMessage());
+        }
+    }
+
+    private static byte[] normalizarLlavePrivada(byte[] encodedKey) {
+        byte[] normalizedKey = new byte[32];
+        int sourceStart = Math.max(0, encodedKey.length - normalizedKey.length);
+        int copyLength = Math.min(encodedKey.length, normalizedKey.length);
+        System.arraycopy(encodedKey, sourceStart, normalizedKey, normalizedKey.length - copyLength, copyLength);
+        return normalizedKey;
+    }
+
+    private PushNotificationPayload crearPayload(
+            String idPost,
+            String autor,
+            String seguidor,
+            String titulo,
+            String texto,
+            String endpoint,
+            String timestamp
+    ) {
+        return new PushNotificationPayload(
+                idPost,
+                autor,
+                seguidor,
+                titulo,
+                texto,
+                endpoint,
+                timestamp
+        );
     }
 }
