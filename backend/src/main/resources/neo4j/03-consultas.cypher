@@ -99,3 +99,26 @@ RETURN a.username AS sigo_ahora_a, b.username AS seguido;
 MATCH (a:Usuario {id_usuario: $miId})-[r:SIGUE]->(b:Usuario {id_usuario: $idDestino})
 DELETE r
 RETURN a.username AS dejo_de_seguir_a, b.username AS ex_seguido;
+
+// ============================================================
+// REACCIONES (issue #30) — crear/eliminar [:REACCIONA {tipo_reaccion}]
+// Se usa tipo_reaccion, igual que el modelo y el seed (02-seed.cypher).
+// ============================================================
+
+// ------------------------------------------------------------
+// 10) DAR LIKE a una publicación
+//     MERGE es idempotente: si el usuario ya reacciono, no crea otra;
+//     solo registra tipo_reaccion y fecha la primera vez.
+// ------------------------------------------------------------
+MATCH (u:Usuario {id_usuario: $miId}), (p:Post {id_post: $idPost})
+MERGE (u)-[r:REACCIONA]->(p)
+  ON CREATE SET r.tipo_reaccion = 'LIKE', r.fecha = datetime()
+RETURN u.username AS usuario, p.id_post AS post, r.tipo_reaccion AS reaccion;
+
+// ------------------------------------------------------------
+// 11) QUITAR EL LIKE de una publicación
+//     Borra unicamente la relacion REACCIONA, no los nodos.
+// ------------------------------------------------------------
+MATCH (u:Usuario {id_usuario: $miId})-[r:REACCIONA {tipo_reaccion:'LIKE'}]->(p:Post {id_post: $idPost})
+DELETE r
+RETURN u.username AS usuario, p.id_post AS post;
