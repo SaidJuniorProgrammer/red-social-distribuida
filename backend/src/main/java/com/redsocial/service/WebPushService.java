@@ -134,50 +134,27 @@ public class WebPushService {
         String ahora = Instant.now().toString();
 
         for (String seguidor : seguidores) {
-            List<PushSubscriptionRequest> userSubscriptions = new ArrayList<>(
-                    suscripciones.getOrDefault(seguidor, Map.of()).values()
-            );
-            if (userSubscriptions.isEmpty()) {
-                PushNotificationPayload pending = crearPayload(
-                        idPost, autor, seguidor, titulo, texto,
-                        "webpush://pendiente/" + seguidor, ahora
-                );
-                bandejaPush.computeIfAbsent(seguidor, ignored -> new CopyOnWriteArrayList<>()).add(pending);
-                emitidos.add(pending);
-                continue;
-            }
-
-            PushNotificationPayload inboxPayload = crearPayload(
-                    idPost, autor, seguidor, titulo, texto,
-                    userSubscriptions.get(0).endpoint(), ahora
-            );
-            for (PushSubscriptionRequest subscription : userSubscriptions) {
-                PushNotificationPayload payload = crearPayload(
-                        idPost, autor, seguidor, titulo, texto,
-                        subscription.endpoint(), ahora
-                );
-                emitidos.add(payload);
-                try {
-                    int statusCode = webPushGateway.enviar(
-                            subscription,
-                            payload,
-                            vapidPublicKey,
-                            vapidPrivateKey
-                    );
-                    if (statusCode >= 200 && statusCode < 300) {
-                        LOG.infof("Web Push enviado a %s (%s)", seguidor, subscription.endpoint());
-                    } else if (statusCode == 404 || statusCode == 410) {
-                        eliminarSuscripcion(seguidor, subscription.endpoint());
-                        LOG.infof("Se eliminó una suscripción Web Push vencida de %s", seguidor);
-                    } else {
-                        LOG.warnf("El servicio Push respondió %d para %s", statusCode, seguidor);
-                    }
-                } catch (Exception exception) {
-                    LOG.warnf("No se pudo enviar Web Push a %s: %s", seguidor, exception.getMessage());
-                }
-            }
-            bandejaPush.computeIfAbsent(seguidor, ignored -> new CopyOnWriteArrayList<>()).add(inboxPayload);
+            enviarNotificacionAUsuario(seguidor, idPost, autor, titulo, texto, ahora, emitidos);
         }
+
+        return emitidos;
+    }
+
+    public List<PushNotificationPayload> notificarLikePublicacion(String autorPost, String usuarioQueReacciona, String idPost) {
+        List<PushNotificationPayload> emitidos = new ArrayList<>();
+        String titulo = "Nuevo Like en tu publicación";
+        String mensaje = "@" + usuarioQueReacciona.trim() + " reaccionó con LIKE a tu publicación";
+        String ahora = Instant.now().toString();
+
+        enviarNotificacionAUsuario(
+                autorPost.trim(),
+                idPost.trim(),
+                usuarioQueReacciona.trim(),
+                titulo,
+                mensaje,
+                ahora,
+                emitidos
+        );
 
         return emitidos;
     }
@@ -197,6 +174,60 @@ public class WebPushService {
         } catch (Exception exception) {
             LOG.warnf("No se pudieron restaurar las suscripciones Web Push: %s", exception.getMessage());
         }
+    }
+
+    private void enviarNotificacionAUsuario(
+            String destinatario,
+            String idPost,
+            String autorEvento,
+            String titulo,
+            String texto,
+            String ahora,
+            List<PushNotificationPayload> emitidos
+    ) {
+        List<PushSubscriptionRequest> userSubscriptions = new ArrayList<>(
+                suscripciones.getOrDefault(destinatario, Map.of()).values()
+        );
+        if (userSubscriptions.isEmpty()) {
+            PushNotificationPayload pending = crearPayload(
+                    idPost, autorEvento, destinatario, titulo, texto,
+                    "webpush://pendiente/" + destinatario, ahora
+            );
+            bandejaPush.computeIfAbsent(destinatario, ignored -> new CopyOnWriteArrayList<>()).add(pending);
+            emitidos.add(pending);
+            return;
+        }
+
+        PushNotificationPayload inboxPayload = crearPayload(
+                idPost, autorEvento, destinatario, titulo, texto,
+                userSubscriptions.get(0).endpoint(), ahora
+        );
+        for (PushSubscriptionRequest subscription : userSubscriptions) {
+            PushNotificationPayload payload = crearPayload(
+                    idPost, autorEvento, destinatario, titulo, texto,
+                    subscription.endpoint(), ahora
+            );
+            emitidos.add(payload);
+            try {
+                int statusCode = webPushGateway.enviar(
+                        subscription,
+                        payload,
+                        vapidPublicKey,
+                        vapidPrivateKey
+                );
+                if (statusCode >= 200 && statusCode < 300) {
+                    LOG.infof("Web Push enviado a %s (%s)", destinatario, subscription.endpoint());
+                } else if (statusCode == 404 || statusCode == 410) {
+                    eliminarSuscripcion(destinatario, subscription.endpoint());
+                    LOG.infof("Se eliminó una suscripción Web Push vencida de %s", destinatario);
+                } else {
+                    LOG.warnf("El servicio Push respondió %d para %s", statusCode, destinatario);
+                }
+            } catch (Exception exception) {
+                LOG.warnf("No se pudo enviar Web Push a %s: %s", destinatario, exception.getMessage());
+            }
+        }
+        bandejaPush.computeIfAbsent(destinatario, ignored -> new CopyOnWriteArrayList<>()).add(inboxPayload);
     }
 
     private static byte[] normalizarLlavePrivada(byte[] encodedKey) {

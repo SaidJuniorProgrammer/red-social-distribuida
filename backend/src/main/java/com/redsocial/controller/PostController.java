@@ -1,14 +1,18 @@
 package com.redsocial.controller;
 
 import com.redsocial.dto.ApiErrorResponse;
+import com.redsocial.dto.GrafoStatusResponse;
 import com.redsocial.dto.PostResponse;
+import com.redsocial.repository.GrafoSocialRepository;
 import com.redsocial.repository.PostRepository;
 import com.redsocial.service.S3StorageService;
 import com.redsocial.service.WebPushService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
@@ -26,12 +30,16 @@ import java.util.UUID;
 public class PostController {
 
     private static final Logger LOG = Logger.getLogger(PostController.class);
+    private static final String STATUS_SUCCESS = "success";
 
     @Inject
     S3StorageService s3StorageService;
 
     @Inject
     PostRepository postRepository;
+
+    @Inject
+    GrafoSocialRepository grafoSocialRepository;
 
     @Inject
     WebPushService webPushService;
@@ -108,6 +116,56 @@ public class PostController {
             LOG.error("Error al crear la publicación", e);
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
                     .entity(new ApiErrorResponse("POST_CREATION_FAILED", null, "No se pudo crear la publicación."))
+                    .build();
+        }
+    }
+
+    @POST
+    @Path("/{id_post}/like/{mi_id}")
+    public Response darLikePost(
+            @PathParam("id_post") String idPost,
+            @PathParam("mi_id") String miId
+    ) {
+        try {
+            String autorPost = grafoSocialRepository.darLikePost(miId.trim(), idPost.trim());
+            if (autorPost == null) {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(new ApiErrorResponse("POST_OR_USER_NOT_FOUND", null, "La publicación o el usuario no existen."))
+                        .build();
+            }
+
+            if (!autorPost.equalsIgnoreCase(miId.trim())) {
+                webPushService.notificarLikePublicacion(autorPost, miId.trim(), idPost.trim());
+            }
+
+            return Response.ok(new GrafoStatusResponse(STATUS_SUCCESS, "Reacción LIKE registrada exitosamente")).build();
+        } catch (Exception e) {
+            LOG.error("Error al registrar like en la publicación", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(new ApiErrorResponse("LIKE_ERROR", null, "No se pudo registrar la reacción."))
+                    .build();
+        }
+    }
+
+    @DELETE
+    @Path("/{id_post}/like/{mi_id}")
+    public Response quitarLikePost(
+            @PathParam("id_post") String idPost,
+            @PathParam("mi_id") String miId
+    ) {
+        try {
+            boolean eliminado = grafoSocialRepository.quitarLikePost(miId.trim(), idPost.trim());
+            if (!eliminado) {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(new ApiErrorResponse("LIKE_NOT_FOUND", null, "No existía una reacción previa en esta publicación."))
+                        .build();
+            }
+
+            return Response.ok(new GrafoStatusResponse(STATUS_SUCCESS, "Reacción LIKE eliminada exitosamente")).build();
+        } catch (Exception e) {
+            LOG.error("Error al eliminar like de la publicación", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(new ApiErrorResponse("UNLIKE_ERROR", null, "No se pudo eliminar la reacción."))
                     .build();
         }
     }
