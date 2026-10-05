@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import ExplorePage from '../src/pages/ExplorePage.jsx'
 import api from '../src/services/api.js'
@@ -43,4 +43,24 @@ it('informa cuando no encuentra cuentas o la búsqueda no está disponible', asy
   expect(await screen.findByRole('status')).toHaveTextContent(
     'No pudimos realizar la búsqueda en este momento.',
   )
+})
+
+it('ignora una respuesta anterior cuando cambia la consulta', async () => {
+  let resolveRequest
+  vi.spyOn(api, 'get').mockImplementation(() => new Promise((resolve) => {
+    resolveRequest = resolve
+  }))
+  render(<ExplorePage />)
+
+  const input = screen.getByLabelText('Nombre de usuario')
+  fireEvent.change(input, { target: { value: 'ana' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+  fireEvent.change(input, { target: { value: 'luis' } })
+
+  await act(async () => {
+    resolveRequest({ data: { usuarios: [{ username: 'ana' }] } })
+  })
+
+  expect(screen.queryByText('@ana')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Buscar' })).toBeEnabled()
 })

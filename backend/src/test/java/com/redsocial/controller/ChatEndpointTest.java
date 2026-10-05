@@ -52,10 +52,12 @@ class ChatEndpointTest {
     ChatRepository chatRepository;
 
     private final List<ChatMessage> mensajesGuardados = new ArrayList<>();
+    private volatile String consultaHistorial;
 
     @BeforeEach
     void configurarMensajesEnMemoria() {
         mensajesGuardados.clear();
+        consultaHistorial = "";
         chatRepository.setDriver(crearDriverEnMemoria());
     }
 
@@ -80,6 +82,10 @@ class ChatEndpointTest {
         try (Session sesionGualter = conectarComo("gualter", mensajesDeGualter)) {
             esperarSesionesActivas(1);
             assertTrue(recibir(mensajesDeGualter).contains("\"type\":\"history\""));
+            assertTrue(consultaHistorial.indexOf("ORDER BY mensaje.timestamp DESC")
+                    < consultaHistorial.indexOf("LIMIT 500"));
+            assertTrue(consultaHistorial.lastIndexOf("ORDER BY mensaje.timestamp ASC")
+                    > consultaHistorial.indexOf("LIMIT 500"));
 
             String mensajeConEmisorFalso = """
                     {
@@ -228,6 +234,7 @@ class ChatEndpointTest {
                             records.add(registroDe(message));
                         }
                     } else {
+                        consultaHistorial = query;
                         String username = parameters.get("username").asString();
                         mensajesGuardados.stream()
                                 .filter(message -> username.equals(message.emisor_id())

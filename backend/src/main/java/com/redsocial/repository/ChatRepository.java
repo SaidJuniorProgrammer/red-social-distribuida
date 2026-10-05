@@ -57,13 +57,15 @@ public class ChatRepository {
         String query = """
                 MATCH (emisor:Usuario)-[:ENVIA]->(mensaje:Mensaje)-[:DIRIGIDO_A]->(destinatario:Usuario)
                 WHERE emisor.username = $username OR destinatario.username = $username
+                WITH emisor, destinatario, mensaje
+                ORDER BY mensaje.timestamp DESC
+                LIMIT 500
                 RETURN mensaje.id AS id,
                        emisor.username AS emisor,
                        destinatario.username AS destinatario,
                        mensaje.contenido AS contenido,
                        toString(mensaje.timestamp) AS timestamp
                 ORDER BY mensaje.timestamp ASC
-                LIMIT 500
                 """;
 
         try (var session = driver.session()) {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { searchRegisteredUsers } from '../services/users.js'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
 
@@ -7,26 +7,50 @@ function ExplorePage() {
   const [users, setUsers] = useState([])
   const [status, setStatus] = useState('')
   const [isSearching, setIsSearching] = useState(false)
+  const searchRequestRef = useRef(null)
+
+  useEffect(() => () => searchRequestRef.current?.abort(), [])
 
   const search = async (event) => {
     event.preventDefault()
     const normalizedQuery = query.trim()
     if (!normalizedQuery) return
 
+    searchRequestRef.current?.abort()
+    const abortController = new AbortController()
+    searchRequestRef.current = abortController
     setIsSearching(true)
     setStatus('')
     try {
-      const results = await searchRegisteredUsers(normalizedQuery)
+      const results = await searchRegisteredUsers(normalizedQuery, {
+        signal: abortController.signal,
+      })
+      if (abortController.signal.aborted) return
+
       setUsers(results)
       setStatus(results.length === 0
         ? 'No encontramos cuentas registradas con ese nombre.'
         : '')
     } catch {
-      setUsers([])
-      setStatus('No pudimos realizar la búsqueda en este momento.')
+      if (!abortController.signal.aborted) {
+        setUsers([])
+        setStatus('No pudimos realizar la búsqueda en este momento.')
+      }
     } finally {
-      setIsSearching(false)
+      if (searchRequestRef.current === abortController) {
+        searchRequestRef.current = null
+        setIsSearching(false)
+      }
     }
+  }
+
+  const changeQuery = ({ target }) => {
+    searchRequestRef.current?.abort()
+    searchRequestRef.current = null
+    setQuery(target.value)
+    setUsers([])
+    setStatus('')
+    setIsSearching(false)
   }
 
   return (
@@ -50,7 +74,7 @@ function ExplorePage() {
               type="search"
               value={query}
               placeholder="Busca por nombre"
-              onChange={({ target }) => setQuery(target.value)}
+              onChange={changeQuery}
             />
             <button className="secondary-button" type="submit" disabled={isSearching || !query.trim()}>
               {isSearching ? 'Buscando…' : 'Buscar'}
