@@ -89,20 +89,49 @@ describe('suscripción Web Push', () => {
   it('reutiliza una suscripción existente sin pedir otra llave', async () => {
     const existingSubscription = {
       endpoint: 'https://push.example/existing',
+      options: { applicationServerKey: new Uint8Array([1, 2, 3, 4]) },
       toJSON: () => ({ keys: { p256dh: 'publica', auth: 'secreta' } }),
+      unsubscribe: vi.fn().mockResolvedValue(true),
     }
     installPushMocks({ subscription: existingSubscription })
-    const getPublicKey = vi.spyOn(api, 'get')
+    const getPublicKey = vi.spyOn(api, 'get').mockResolvedValue({
+      data: { publicKey: 'AQIDBA' },
+    })
     vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
 
     await expect(subscribeUserToPush()).resolves.toBe(
       existingSubscription,
     )
-    expect(getPublicKey).not.toHaveBeenCalled()
+    expect(getPublicKey).toHaveBeenCalledOnce()
     expect(api.post).toHaveBeenCalledWith('/push/subscribe', {
       endpoint: 'https://push.example/existing',
       keys: { p256dh: 'publica', auth: 'secreta' },
     })
+  })
+
+  it('renueva una suscripción creada con otra llave VAPID', async () => {
+    const previousSubscription = {
+      endpoint: 'https://push.example/anterior',
+      options: { applicationServerKey: new Uint8Array([9, 9, 9]) },
+      unsubscribe: vi.fn().mockResolvedValue(true),
+    }
+    const nextSubscription = {
+      endpoint: 'https://push.example/renovada',
+      options: { applicationServerKey: new Uint8Array([1, 2, 3, 4]) },
+      toJSON: () => ({ keys: { p256dh: 'nueva', auth: 'nueva-auth' } }),
+    }
+    const { subscribe } = installPushMocks({ subscription: previousSubscription })
+    subscribe.mockResolvedValue(nextSubscription)
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { publicKey: 'AQIDBA' } })
+    vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
+    vi.spyOn(api, 'delete').mockResolvedValue({ data: {} })
+
+    await expect(subscribeUserToPush()).resolves.toBe(nextSubscription)
+    expect(previousSubscription.unsubscribe).toHaveBeenCalledOnce()
+    expect(api.delete).toHaveBeenCalledWith('/push/subscribe', {
+      params: { endpoint: previousSubscription.endpoint },
+    })
+    expect(subscribe).toHaveBeenCalledOnce()
   })
 
   it('no intenta suscribir cuando el permiso fue rechazado', async () => {

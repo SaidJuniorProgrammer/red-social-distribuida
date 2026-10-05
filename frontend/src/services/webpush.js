@@ -38,6 +38,15 @@ export async function registerPushSubscription(subscription) {
   })
 }
 
+function hasApplicationServerKey(subscription, expectedKey) {
+  const currentKey = subscription.options?.applicationServerKey
+  if (!currentKey) return false
+
+  const currentBytes = new Uint8Array(currentKey)
+  return currentBytes.length === expectedKey.length &&
+    currentBytes.every((value, index) => value === expectedKey[index])
+}
+
 export async function subscribeUserToPush() {
   if (!isWebPushSupported()) {
     throw new Error('Este navegador no admite notificaciones web.')
@@ -52,13 +61,22 @@ export async function subscribeUserToPush() {
   }
 
   const registration = await getServiceWorkerRegistration()
+  const { data } = await api.get('/push/vapid-public-key')
+  const applicationServerKey = urlBase64ToUint8Array(data.publicKey)
   let subscription = await registration.pushManager.getSubscription()
 
+  if (subscription && !hasApplicationServerKey(subscription, applicationServerKey)) {
+    await subscription.unsubscribe()
+    await api.delete('/push/subscribe', {
+      params: { endpoint: subscription.endpoint },
+    }).catch(() => undefined)
+    subscription = null
+  }
+
   if (!subscription) {
-    const { data } = await api.get('/push/vapid-public-key')
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+      applicationServerKey,
     })
   }
 

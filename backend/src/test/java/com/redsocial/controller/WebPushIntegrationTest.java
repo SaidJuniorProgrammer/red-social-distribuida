@@ -4,6 +4,9 @@ import com.redsocial.dto.PushSubscriptionRequest;
 import com.redsocial.repository.PostRepository;
 import com.redsocial.service.S3StorageService;
 import com.redsocial.service.WebPushService;
+import com.redsocial.service.WebPushGateway;
+import com.redsocial.service.WebPushGatewayImpl;
+import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.smallrye.jwt.build.Jwt;
 import jakarta.inject.Inject;
@@ -16,6 +19,8 @@ import org.neo4j.driver.Session;
 import org.neo4j.driver.TransactionCallback;
 import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.Values;
+import nl.martijndwars.webpush.PushService;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadBucketResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
@@ -23,19 +28,27 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import java.io.File;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
+import java.security.Security;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 @QuarkusTest
 class WebPushIntegrationTest {
+
+    private final List<String> endpointsEntregados = new CopyOnWriteArrayList<>();
 
     @Inject
     PostRepository postRepository;
@@ -48,6 +61,18 @@ class WebPushIntegrationTest {
 
     @BeforeEach
     void configurarMocks() {
+        endpointsEntregados.clear();
+        QuarkusMock.installMockForType(new WebPushGatewayImpl() {
+            @Override
+            public void enviar(
+                    PushSubscriptionRequest subscription,
+                    com.redsocial.dto.PushNotificationPayload payload,
+                    String publicKey,
+                    String privateKey
+            ) {
+                endpointsEntregados.add(subscription.endpoint());
+            }
+        }, WebPushGateway.class);
         S3Client s3Proxy = (S3Client) Proxy.newProxyInstance(
                 S3Client.class.getClassLoader(),
                 new Class[]{S3Client.class},
@@ -143,6 +168,13 @@ class WebPushIntegrationTest {
         assertNotNull(webPushService.getVapidPublicKey());
         assertNotNull(webPushService.getVapidPrivateKey());
         assertFalse(webPushService.getVapidPublicKey().isBlank());
+        assertEquals(32, Base64.getUrlDecoder().decode(webPushService.getVapidPrivateKey()).length);
+        Security.addProvider(new BouncyCastleProvider());
+        assertDoesNotThrow(() -> new PushService(
+                webPushService.getVapidPublicKey(),
+                webPushService.getVapidPrivateKey(),
+                "mailto:test@pachyweb.local"
+        ));
 
         given()
         .when()
@@ -266,6 +298,20 @@ class WebPushIntegrationTest {
         .then()
                 .statusCode(201);
 
+        PushSubscriptionRequest segundoNavegadorEstalin = new PushSubscriptionRequest(
+                null,
+                "https://push.example/estalin-segundo-navegador",
+                subAnthony.keys()
+        );
+        given()
+                .header("Authorization", "Bearer " + tokenEstalin)
+                .contentType("application/json")
+                .body(segundoNavegadorEstalin)
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(201);
+
         // 4. Crear nueva publicación de 'carlos' -> busca seguidores en Neo4j y emite Push a 'anthony' y 'estalin'
         File tempFile = Files.createTempFile("push_post", ".jpg").toFile();
         Files.writeString(tempFile.toPath(), "imagen-push");
@@ -298,21 +344,34 @@ class WebPushIntegrationTest {
                 .statusCode(200)
                 .body(containsString("Publicacion que dispara Web Push"))
                 .body(containsString(subAnthony.endpoint()));
+        assertEquals(2, endpointsEntregados.size());
+        assertTrue(endpointsEntregados.contains(subAnthony.endpoint()));
+        assertTrue(endpointsEntregados.contains(segundoNavegadorEstalin.endpoint()));
 
         // 6. Eliminar suscripción existente (200) e inexistente (404)
         given()
                 .header("Authorization", "Bearer " + tokenEstalin)
+                .queryParam("endpoint", subAnthony.endpoint())
         .when()
-                .delete("/api/push/subscribe/estalin")
+                .delete("/api/push/subscribe")
         .then()
                 .statusCode(200);
 
         given()
                 .header("Authorization", "Bearer " + tokenEstalin)
+                .queryParam("endpoint", subAnthony.endpoint())
         .when()
-                .delete("/api/push/subscribe/estalin")
+                .delete("/api/push/subscribe")
         .then()
                 .statusCode(404);
+
+        endpointsEntregados.clear();
+        webPushService.notificarSeguidoresNuevaPublicacion(
+                "carlos",
+                "post-segundo-navegador",
+                "Solo debe llegar al navegador que permanece suscrito"
+        );
+        assertEquals(List.of(segundoNavegadorEstalin.endpoint()), endpointsEntregados);
 
         given()
                 .header("Authorization", "Bearer " + tokenAnthony)

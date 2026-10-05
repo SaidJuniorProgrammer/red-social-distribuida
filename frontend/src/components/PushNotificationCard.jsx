@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  getCurrentPushSubscription,
   isWebPushSupported,
-  registerPushSubscription,
   subscribeUserToPush,
 } from '../services/webpush.js'
 
@@ -33,13 +31,13 @@ function PushNotificationCard() {
         return
       }
 
-      const subscription = await getCurrentPushSubscription()
-      if (subscription) {
-        await registerPushSubscription(subscription)
+      if (Notification.permission === 'granted') {
+        await subscribeUserToPush()
+        if (isCurrent) setState(PUSH_STATE.active)
+        return
       }
-      if (isCurrent) {
-        setState(subscription ? PUSH_STATE.active : PUSH_STATE.available)
-      }
+
+      if (isCurrent) setState(PUSH_STATE.available)
     }
 
     checkSubscription().catch(() => {

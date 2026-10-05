@@ -114,19 +114,18 @@ public class ChatEndpoint {
                 return connection.sendText(payloadJson);
             }
 
-            return connection.sendText(payloadJson).chain(() ->
-                    sesionDestinatario.sendText(payloadJson)
-                            .onFailure()
-                            .recoverWithUni(failure -> {
-                                LOG.warnf(
-                                        "El mensaje quedó guardado para %s, pero no se pudo entregar en vivo: %s",
-                                        mensajeNormalizado.destinatario_id(),
-                                        failure.getMessage()
-                                );
-                                sesiones.remove(mensajeNormalizado.destinatario_id(), sesionDestinatario);
-                                return Uni.createFrom().voidItem();
-                            })
-            );
+            Uni<Void> entregaDestinatario = sesionDestinatario.sendText(payloadJson)
+                    .onFailure()
+                    .recoverWithUni(failure -> {
+                        LOG.warnf(
+                                "El mensaje quedó guardado para %s, pero no se pudo entregar en vivo: %s",
+                                mensajeNormalizado.destinatario_id(),
+                                failure.getMessage()
+                        );
+                        sesiones.remove(mensajeNormalizado.destinatario_id(), sesionDestinatario);
+                        return Uni.createFrom().voidItem();
+                    });
+            return entregaDestinatario.chain(() -> connection.sendText(payloadJson));
         } catch (Exception exception) {
             LOG.error("No se pudo procesar ni rutear el mensaje de chat", exception);
             return enviarErrorDeEntrega(

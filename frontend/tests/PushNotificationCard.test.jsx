@@ -6,7 +6,9 @@ import api from '../src/services/api.js'
 function installBrowserMocks({ existingSubscription = null } = {}) {
   const newSubscription = {
     endpoint: 'https://push.example/oscar',
+    options: { applicationServerKey: new Uint8Array([1, 2, 3, 4]) },
     toJSON: () => ({ keys: { p256dh: 'publica', auth: 'secreta' } }),
+    unsubscribe: vi.fn().mockResolvedValue(true),
   }
   const registration = {
     pushManager: {
@@ -60,7 +62,9 @@ it('activa las notificaciones a petición del usuario', async () => {
 it('vincula una suscripción existente con la cuenta que inició sesión', async () => {
   const existingSubscription = {
     endpoint: 'https://push.example/cuenta-anterior',
+    options: { applicationServerKey: new Uint8Array([1, 2, 3, 4]) },
     toJSON: () => ({ keys: { p256dh: 'publica', auth: 'secreta' } }),
+    unsubscribe: vi.fn().mockResolvedValue(true),
   }
   installBrowserMocks({ existingSubscription })
   Notification.permission = 'granted'

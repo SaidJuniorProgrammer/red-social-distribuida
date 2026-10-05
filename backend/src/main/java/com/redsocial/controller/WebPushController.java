@@ -14,6 +14,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -62,14 +63,11 @@ public class WebPushController {
     }
 
     @DELETE
-    @Path("/subscribe/{usuario}")
+    @Path("/subscribe")
     @Authenticated
-    public Response cancelarSuscripcion(@PathParam("usuario") String usuario) {
-        if (!esUsuarioAutenticado(usuario)) {
-            return accesoDenegado();
-        }
-
-        boolean eliminado = webPushService.eliminarSuscripcion(usuario);
+    public Response cancelarSuscripcion(@QueryParam("endpoint") String endpoint) {
+        String usuario = securityIdentity.getPrincipal().getName();
+        boolean eliminado = webPushService.eliminarSuscripcion(usuario, endpoint);
         if (!eliminado) {
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(new ApiErrorResponse("SUBSCRIPTION_NOT_FOUND", "usuario", "No existe suscripción activa para este usuario."))
