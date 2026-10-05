@@ -180,6 +180,34 @@ class WebPushIntegrationTest {
         given()
                 .header("Authorization", "Bearer " + tokenAnthony)
                 .contentType("application/json")
+                .body("""
+                        {
+                          "endpoint": "https://endpoint",
+                          "keys": {"p256dh": null, "auth": "llave-auth"}
+                        }
+                        """)
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(400);
+
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+                .contentType("application/json")
+                .body("""
+                        {
+                          "endpoint": "https://endpoint",
+                          "keys": {"p256dh": "llave-p256dh", "auth": null}
+                        }
+                        """)
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(400);
+
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+                .contentType("application/json")
                 .body(new PushSubscriptionRequest(
                         null,
                         "https://endpoint",
@@ -224,6 +252,20 @@ class WebPushIntegrationTest {
         .then()
                 .statusCode(401);
 
+        PushSubscriptionRequest subEstalin = new PushSubscriptionRequest(
+                null,
+                subAnthony.endpoint(),
+                subAnthony.keys()
+        );
+        given()
+                .header("Authorization", "Bearer " + tokenEstalin)
+                .contentType("application/json")
+                .body(subEstalin)
+        .when()
+                .post("/api/push/subscribe")
+        .then()
+                .statusCode(201);
+
         // 4. Crear nueva publicación de 'carlos' -> busca seguidores en Neo4j y emite Push a 'anthony' y 'estalin'
         File tempFile = Files.createTempFile("push_post", ".jpg").toFile();
         Files.writeString(tempFile.toPath(), "imagen-push");
@@ -246,7 +288,7 @@ class WebPushIntegrationTest {
         .then()
                 .statusCode(200)
                 .body(containsString("Publicacion que dispara Web Push"))
-                .body(containsString("https://fcm.googleapis.com/fcm/send/demo-anthony"));
+                .body(containsString("webpush://pendiente/anthony"));
 
         given()
                 .header("Authorization", "Bearer " + tokenEstalin)
@@ -254,20 +296,21 @@ class WebPushIntegrationTest {
                 .get("/api/push/notificaciones/estalin")
         .then()
                 .statusCode(200)
-                .body(containsString("Publicacion que dispara Web Push"));
+                .body(containsString("Publicacion que dispara Web Push"))
+                .body(containsString(subAnthony.endpoint()));
 
         // 6. Eliminar suscripción existente (200) e inexistente (404)
         given()
-                .header("Authorization", "Bearer " + tokenAnthony)
+                .header("Authorization", "Bearer " + tokenEstalin)
         .when()
-                .delete("/api/push/subscribe/anthony")
+                .delete("/api/push/subscribe/estalin")
         .then()
                 .statusCode(200);
 
         given()
-                .header("Authorization", "Bearer " + tokenAnthony)
+                .header("Authorization", "Bearer " + tokenEstalin)
         .when()
-                .delete("/api/push/subscribe/anthony")
+                .delete("/api/push/subscribe/estalin")
         .then()
                 .statusCode(404);
 

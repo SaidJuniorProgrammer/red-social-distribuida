@@ -3,7 +3,7 @@ self.addEventListener('push', (event) => {
 
   if (event.data) {
     try {
-      notification = event.data.json()
+      notification = event.data.json() ?? {}
     } catch {
       notification = { mensaje: event.data.text() }
     }

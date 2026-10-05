@@ -153,7 +153,9 @@ function ChatPage() {
     }
     setRecipientQuery(nextRecipient)
     setSearchResults([])
-    setIsSearching(Boolean(normalizedRecipient))
+    setIsSearching(
+      Boolean(normalizedRecipient) && normalizedRecipient !== activeRecipient,
+    )
     setSearchError('')
     setSendError('')
   }

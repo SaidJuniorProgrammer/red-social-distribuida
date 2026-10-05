@@ -52,6 +52,26 @@ describe('Service Worker de notificaciones', () => {
     })
   })
 
+  it('muestra la alerta predeterminada cuando el push contiene null', async () => {
+    const { listeners, showNotification } = createWorker()
+    let pendingTask
+
+    listeners.get('push')({
+      data: { json: () => null },
+      waitUntil: (task) => {
+        pendingTask = task
+      },
+    })
+    await pendingTask
+
+    expect(showNotification).toHaveBeenCalledWith(
+      'Nueva actividad en Pachyweb',
+      expect.objectContaining({
+        body: 'Hay una nueva publicación en tu red.',
+      }),
+    )
+  })
+
   it('evita abrir destinos externos desde una notificación', async () => {
     const { listeners, openWindow } = createWorker()
     const close = vi.fn()

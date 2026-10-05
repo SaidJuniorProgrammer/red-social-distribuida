@@ -30,6 +30,14 @@ export async function getCurrentPushSubscription() {
   return registration.pushManager.getSubscription()
 }
 
+export async function registerPushSubscription(subscription) {
+  const subscriptionData = subscription.toJSON()
+  await api.post('/push/subscribe', {
+    endpoint: subscription.endpoint,
+    keys: subscriptionData.keys ?? {},
+  })
+}
+
 export async function subscribeUserToPush() {
   if (!isWebPushSupported()) {
     throw new Error('Este navegador no admite notificaciones web.')
@@ -54,11 +62,7 @@ export async function subscribeUserToPush() {
     })
   }
 
-  const subscriptionData = subscription.toJSON()
-  await api.post('/push/subscribe', {
-    endpoint: subscription.endpoint,
-    keys: subscriptionData.keys ?? {},
-  })
+  await registerPushSubscription(subscription)
 
   return subscription
 }

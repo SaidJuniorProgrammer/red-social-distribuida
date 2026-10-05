@@ -112,6 +112,10 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
     target: { value: 'said' },
   })
   fireEvent.click(await screen.findByRole('button', { name: /Said.*@said/ }))
+  fireEvent.change(screen.getByLabelText('Buscar usuario registrado'), {
+    target: { value: 'said ' },
+  })
+  expect(screen.queryByText('Buscando usuarios…')).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Volver a conversaciones' }))
   fireEvent.change(screen.getByLabelText('Mensaje'), {
     target: { value: 'Hola desde React' },

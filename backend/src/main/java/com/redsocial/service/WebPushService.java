@@ -69,7 +69,12 @@ public class WebPushService {
     }
 
     public void registrarSuscripcion(PushSubscriptionRequest request) {
-        suscripciones.put(request.usuario().trim(), request);
+        String username = request.usuario().trim();
+        suscripciones.entrySet().removeIf(entry ->
+                !entry.getKey().equals(username)
+                        && request.endpoint().equals(entry.getValue().endpoint())
+        );
+        suscripciones.put(username, request);
     }
 
     public boolean eliminarSuscripcion(String usuario) {

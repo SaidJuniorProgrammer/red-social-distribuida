@@ -3,17 +3,15 @@ import { afterEach, expect, it, vi } from 'vitest'
 import PushNotificationCard from '../src/components/PushNotificationCard.jsx'
 import api from '../src/services/api.js'
 
-function installBrowserMocks() {
-  const subscription = {
+function installBrowserMocks({ existingSubscription = null } = {}) {
+  const newSubscription = {
     endpoint: 'https://push.example/oscar',
     toJSON: () => ({ keys: { p256dh: 'publica', auth: 'secreta' } }),
   }
   const registration = {
     pushManager: {
-      getSubscription: vi.fn()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null),
-      subscribe: vi.fn().mockResolvedValue(subscription),
+      getSubscription: vi.fn().mockResolvedValue(existingSubscription),
+      subscribe: vi.fn().mockResolvedValue(newSubscription),
     },
   }
 
@@ -57,6 +55,24 @@ it('activa las notificaciones a petición del usuario', async () => {
   )
   expect(Notification.requestPermission).toHaveBeenCalledOnce()
   await waitFor(() => expect(api.post).toHaveBeenCalledOnce())
+})
+
+it('vincula una suscripción existente con la cuenta que inició sesión', async () => {
+  const existingSubscription = {
+    endpoint: 'https://push.example/cuenta-anterior',
+    toJSON: () => ({ keys: { p256dh: 'publica', auth: 'secreta' } }),
+  }
+  installBrowserMocks({ existingSubscription })
+  Notification.permission = 'granted'
+  render(<PushNotificationCard />)
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Notificaciones activadas',
+  )
+  expect(api.post).toHaveBeenCalledWith('/push/subscribe', {
+    endpoint: existingSubscription.endpoint,
+    keys: { p256dh: 'publica', auth: 'secreta' },
+  })
 })
 
 it('explica cuando el navegador no admite notificaciones', async () => {

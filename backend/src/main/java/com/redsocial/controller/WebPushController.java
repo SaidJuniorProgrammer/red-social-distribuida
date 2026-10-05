@@ -40,10 +40,7 @@ public class WebPushController {
     @Path("/subscribe")
     @Authenticated
     public Response suscribir(PushSubscriptionRequest request) {
-        if (request == null || request.endpoint() == null || request.endpoint().isBlank()
-                || request.keys() == null
-                || request.keys().getOrDefault("p256dh", "").isBlank()
-                || request.keys().getOrDefault("auth", "").isBlank()) {
+        if (suscripcionInvalida(request)) {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ApiErrorResponse(
                             "INVALID_SUBSCRIPTION",
@@ -95,6 +92,17 @@ public class WebPushController {
     private boolean esUsuarioAutenticado(String usuario) {
         return usuario != null
                 && usuario.trim().equals(securityIdentity.getPrincipal().getName());
+    }
+
+    private boolean suscripcionInvalida(PushSubscriptionRequest request) {
+        if (request == null || request.endpoint() == null || request.endpoint().isBlank()
+                || request.keys() == null) {
+            return true;
+        }
+
+        String p256dh = request.keys().get("p256dh");
+        String auth = request.keys().get("auth");
+        return p256dh == null || p256dh.isBlank() || auth == null || auth.isBlank();
     }
 
     private Response accesoDenegado() {
