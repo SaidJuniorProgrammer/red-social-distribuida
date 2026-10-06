@@ -5,11 +5,15 @@ import com.redsocial.dto.SugerenciaResponse;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.neo4j.driver.Driver;
+import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Repositorio para gestionar las consultas y relaciones del grafo social en Neo4j.
+ */
 @ApplicationScoped
 public class GrafoSocialRepository {
 
@@ -17,14 +21,33 @@ public class GrafoSocialRepository {
     private static final String PARAM_ID_DESTINO = "idDestino";
     private static final String PARAM_ID_POST = "idPost";
 
+    /**
+     * Resultado de la operación de reacción LIKE sobre una publicación.
+     *
+     * @param autor        nombre de usuario del autor del post (puede ser null si no tiene autor)
+     * @param recienCreado true si la reacción se creó por primera vez, false si ya existía
+     */
+    public record LikeResult(String autor, boolean recienCreado) {
+    }
+
     @Inject
     Driver driver;
 
+    /**
+     * Asigna la instancia del driver de Neo4j.
+     *
+     * @param driver instancia de Driver de Neo4j
+     */
     public void setDriver(Driver driver) {
         this.driver = driver;
     }
 
-    // Consulta N.° 3: Feed personalizado ordenado por fecha descendente
+    /**
+     * Obtiene el feed personalizado del usuario ordenado por fecha descendente (Consulta N.° 3).
+     *
+     * @param miId identificador o username del usuario
+     * @return lista de publicaciones del feed
+     */
     public List<FeedItemResponse> obtenerFeed(String miId) {
         String query = """
             MATCH (yo:Usuario)-[:SIGUE]->(autor:Usuario)-[:PUBLICA]->(p:Post)
@@ -60,7 +83,13 @@ public class GrafoSocialRepository {
         }
     }
 
-    // Consulta N.° 8: Seguir a un usuario (MERGE idempotente)
+    /**
+     * Crea de forma idempotente la relación de seguimiento entre dos usuarios (Consulta N.° 8).
+     *
+     * @param miId      identificador del usuario seguidor
+     * @param idDestino identificador del usuario a seguir
+     * @return true si ambos usuarios existen y se registró la relación
+     */
     public boolean seguirUsuario(String miId, String idDestino) {
         String query = """
             MATCH (a:Usuario), (b:Usuario)
@@ -80,7 +109,13 @@ public class GrafoSocialRepository {
         }
     }
 
-    // Consulta N.° 9: Dejar de seguir a un usuario
+    /**
+     * Elimina la relación de seguimiento entre dos usuarios (Consulta N.° 9).
+     *
+     * @param miId      identificador del usuario seguidor
+     * @param idDestino identificador del usuario seguido
+     * @return true si existía la relación y fue eliminada
+     */
     public boolean dejarDeSeguirUsuario(String miId, String idDestino) {
         String query = """
             MATCH (a:Usuario)-[r:SIGUE]->(b:Usuario)
@@ -98,7 +133,12 @@ public class GrafoSocialRepository {
         }
     }
 
-    // Consulta N.° 4: Recomendación de usuarios (2 niveles del grafo)
+    /**
+     * Obtiene sugerencias de usuarios a seguir basadas en amigos de amigos (Consulta N.° 4).
+     *
+     * @param miId identificador del usuario
+     * @return lista de sugerencias ordenadas por conexiones en común
+     */
     public List<SugerenciaResponse> obtenerSugerencias(String miId) {
         String query = """
             MATCH (yo:Usuario)-[:SIGUE]->(intermedio:Usuario)-[:SIGUE]->(sugerido:Usuario)
@@ -126,33 +166,55 @@ public class GrafoSocialRepository {
         }
     }
 
-    // Consulta N.° 10: Dar Like a una publicación (MERGE idempotente con tipo_reaccion: 'LIKE')
-    public String darLikePost(String miId, String idPost) {
+    /**
+     * Registra de forma idempotente una reacción LIKE sobre una publicación (Consulta N.° 10).
+     *
+     * @param miId   identificador o username del usuario que reacciona
+     * @param idPost identificador único de la publicación
+     * @return resultado con el autor del post y si la reacción fue recién creada, o null si no existen
+     */
+    public LikeResult darLikePost(String miId, String idPost) {
         String query = """
             MATCH (u:Usuario), (p:Post {id_post: $idPost})
             WHERE u.id_usuario = $miId OR u.username = $miId OR u.id = $miId
+            WITH u, p LIMIT 1
             OPTIONAL MATCH (autor:Usuario)-[:PUBLICA]->(p)
+            WITH u, p, head(collect(autor.username)) AS autorUsername
+            OPTIONAL MATCH (u)-[existente:REACCIONA {tipo_reaccion: 'LIKE'}]->(p)
+            WITH u, p, autorUsername, (existente IS NULL) AS recienCreado
             MERGE (u)-[r:REACCIONA {tipo_reaccion: 'LIKE'}]->(p)
               ON CREATE SET r.fecha = datetime()
-            RETURN coalesce(autor.username, 'desconocido') AS autor
+            RETURN autorUsername AS autor, recienCreado AS creado
             """;
 
         try (var session = driver.session()) {
             return session.executeWrite(tx -> {
                 var result = tx.run(query, Values.parameters(PARAM_MI_ID, miId, PARAM_ID_POST, idPost));
                 if (result.hasNext()) {
-                    return result.next().get("autor").asString(null);
+                    var row = result.next();
+                    Value autorVal = row.get("autor");
+                    String autor = (autorVal != null && !autorVal.isNull()) ? autorVal.asString(null) : null;
+                    Value creadoVal = row.get("creado");
+                    boolean creado = creadoVal == null || creadoVal.isNull() || creadoVal.asBoolean(true);
+                    return new LikeResult(autor, creado);
                 }
                 return null;
             });
         }
     }
 
-    // Consulta N.° 11: Quitar Like a una publicación (DELETE de la relación REACCIONA)
+    /**
+     * Elimina la reacción LIKE de un usuario sobre una publicación (Consulta N.° 11).
+     *
+     * @param miId   identificador o username del usuario
+     * @param idPost identificador único de la publicación
+     * @return true si existía la reacción LIKE y fue eliminada
+     */
     public boolean quitarLikePost(String miId, String idPost) {
         String query = """
-            MATCH (u:Usuario)-[r:REACCIONA]->(p:Post {id_post: $idPost})
+            MATCH (u:Usuario)-[r:REACCIONA {tipo_reaccion: 'LIKE'}]->(p:Post {id_post: $idPost})
             WHERE u.id_usuario = $miId OR u.username = $miId OR u.id = $miId
+            WITH u, r LIMIT 1
             DELETE r
             RETURN u.username AS usuario
             """;

@@ -24,6 +24,10 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Servicio encargado de gestionar las llaves VAPID, las suscripciones Web Push
+ * y el envío de notificaciones de nuevas publicaciones y reacciones.
+ */
 @ApplicationScoped
 public class WebPushService {
 
@@ -50,6 +54,9 @@ public class WebPushService {
     private final Map<String, Map<String, PushSubscriptionRequest>> suscripciones = new ConcurrentHashMap<>();
     private final Map<String, List<PushNotificationPayload>> bandejaPush = new ConcurrentHashMap<>();
 
+    /**
+     * Inicializa las llaves VAPID y restaura las suscripciones almacenadas al arrancar el servicio.
+     */
     @PostConstruct
     void init() {
         if (configuredPublicKey.filter(key -> !key.isBlank()).isPresent()
@@ -64,6 +71,9 @@ public class WebPushService {
         restaurarSuscripciones();
     }
 
+    /**
+     * Genera un par de llaves criptográficas VAPID sobre la curva elíptica P-256 (secp256r1).
+     */
     public void generarLlavesVapid() {
         try {
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC");
@@ -84,14 +94,29 @@ public class WebPushService {
         }
     }
 
+    /**
+     * Devuelve la llave pública VAPID en formato Base64URL.
+     *
+     * @return llave pública VAPID
+     */
     public String getVapidPublicKey() {
         return vapidPublicKey;
     }
 
+    /**
+     * Devuelve la llave privada VAPID en formato Base64URL.
+     *
+     * @return llave privada VAPID
+     */
     public String getVapidPrivateKey() {
         return vapidPrivateKey;
     }
 
+    /**
+     * Registra y persiste una suscripción Web Push asociada a un usuario.
+     *
+     * @param request datos de la suscripción del navegador
+     */
     public void registrarSuscripcion(PushSubscriptionRequest request) {
         String username = request.usuario().trim();
         PushSubscriptionRequest normalizedRequest = new PushSubscriptionRequest(
@@ -110,6 +135,13 @@ public class WebPushService {
                 .put(normalizedRequest.endpoint(), normalizedRequest);
     }
 
+    /**
+     * Elimina una suscripción Web Push específica de un usuario en memoria y base de datos.
+     *
+     * @param usuario  nombre de usuario
+     * @param endpoint URL del endpoint Push a eliminar
+     * @return true si la suscripción fue eliminada
+     */
     public boolean eliminarSuscripcion(String usuario, String endpoint) {
         if (endpoint == null || endpoint.isBlank()) {
             return false;
@@ -126,6 +158,14 @@ public class WebPushService {
         return removed || removedFromDatabase;
     }
 
+    /**
+     * Notifica vía Web Push a todos los seguidores del autor cuando publica un nuevo post.
+     *
+     * @param autor  username del autor de la publicación
+     * @param idPost identificador de la publicación
+     * @param texto  contenido de la publicación
+     * @return lista de notificaciones emitidas
+     */
     public List<PushNotificationPayload> notificarSeguidoresNuevaPublicacion(String autor, String idPost, String texto) {
         List<String> seguidores = postRepository.obtenerSeguidoresDeAutor(autor);
         List<PushNotificationPayload> emitidos = new ArrayList<>();
@@ -140,6 +180,14 @@ public class WebPushService {
         return emitidos;
     }
 
+    /**
+     * Emite una notificación Web Push al autor de una publicación cuando recibe un nuevo LIKE.
+     *
+     * @param autorPost           username del autor de la publicación
+     * @param usuarioQueReacciona username del usuario que dio LIKE
+     * @param idPost              identificador de la publicación
+     * @return lista de notificaciones emitidas al autor
+     */
     public List<PushNotificationPayload> notificarLikePublicacion(String autorPost, String usuarioQueReacciona, String idPost) {
         List<PushNotificationPayload> emitidos = new ArrayList<>();
         String titulo = "Nuevo Like en tu publicación";
@@ -159,10 +207,19 @@ public class WebPushService {
         return emitidos;
     }
 
+    /**
+     * Obtiene el historial de notificaciones Push almacenadas en la bandeja de un usuario.
+     *
+     * @param usuario nombre de usuario
+     * @return lista de notificaciones del usuario
+     */
     public List<PushNotificationPayload> obtenerNotificacionesDeUsuario(String usuario) {
         return bandejaPush.getOrDefault(usuario.trim(), List.of());
     }
 
+    /**
+     * Restaura desde Neo4j las suscripciones Web Push registradas previamente.
+     */
     void restaurarSuscripciones() {
         try {
             for (PushSubscriptionRequest subscription : pushSubscriptionRepository.obtenerTodas()) {
@@ -176,6 +233,17 @@ public class WebPushService {
         }
     }
 
+    /**
+     * Envía una notificación Push a todas las suscripciones activas de un destinatario y actualiza su bandeja.
+     *
+     * @param destinatario usuario que recibe la notificación
+     * @param idPost       identificador de la publicación relacionada
+     * @param autorEvento  usuario que originó el evento
+     * @param titulo       título de la notificación
+     * @param texto        cuerpo del mensaje
+     * @param ahora        marca de tiempo ISO-8601
+     * @param emitidos     lista acumuladora de payloads emitidos
+     */
     private void enviarNotificacionAUsuario(
             String destinatario,
             String idPost,
@@ -230,6 +298,12 @@ public class WebPushService {
         bandejaPush.computeIfAbsent(destinatario, ignored -> new CopyOnWriteArrayList<>()).add(inboxPayload);
     }
 
+    /**
+     * Normaliza los bytes de la llave privada EC a un arreglo fijo de 32 bytes.
+     *
+     * @param encodedKey bytes originales de la llave privada
+     * @return arreglo normalizado de 32 bytes
+     */
     private static byte[] normalizarLlavePrivada(byte[] encodedKey) {
         byte[] normalizedKey = new byte[32];
         int sourceStart = Math.max(0, encodedKey.length - normalizedKey.length);
@@ -238,6 +312,18 @@ public class WebPushService {
         return normalizedKey;
     }
 
+    /**
+     * Construye una instancia de PushNotificationPayload.
+     *
+     * @param idPost    identificador de la publicación
+     * @param autor     usuario emisor del evento
+     * @param seguidor  usuario destinatario
+     * @param titulo    título de la notificación
+     * @param texto     mensaje de la notificación
+     * @param endpoint  endpoint de destino
+     * @param timestamp fecha y hora del evento
+     * @return instancia de PushNotificationPayload
+     */
     private PushNotificationPayload crearPayload(
             String idPost,
             String autor,

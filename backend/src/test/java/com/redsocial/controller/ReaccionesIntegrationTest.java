@@ -5,6 +5,8 @@ import com.redsocial.repository.GrafoSocialRepository;
 import com.redsocial.service.WebPushService;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.SecurityContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.neo4j.driver.Driver;
@@ -17,13 +19,18 @@ import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
 
 import java.lang.reflect.Proxy;
+import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+/**
+ * Pruebas de integración para los endpoints de reacciones LIKE y notificaciones Web Push asociadas.
+ */
 @QuarkusTest
 class ReaccionesIntegrationTest {
 
@@ -33,19 +40,14 @@ class ReaccionesIntegrationTest {
     @Inject
     WebPushService webPushService;
 
+    @Inject
+    PostController postController;
+
+    /**
+     * Configura el driver de Neo4j simulado en memoria antes de cada prueba.
+     */
     @BeforeEach
     void configurarMocks() {
-        Record likeRecord = (Record) Proxy.newProxyInstance(
-                Record.class.getClassLoader(),
-                new Class[]{Record.class},
-                (proxy, method, args) -> {
-                    if ("get".equals(method.getName())) {
-                        return Values.value("carlos");
-                    }
-                    return null;
-                }
-        );
-
         TransactionContext txProxy = (TransactionContext) Proxy.newProxyInstance(
                 TransactionContext.class.getClassLoader(),
                 new Class[]{TransactionContext.class},
@@ -60,6 +62,30 @@ class ReaccionesIntegrationTest {
 
                         boolean tieneResultado = !"no_existe".equals(miId);
                         AtomicInteger contador = new AtomicInteger(tieneResultado ? 1 : 0);
+
+                        Record likeRecord = (Record) Proxy.newProxyInstance(
+                                Record.class.getClassLoader(),
+                                new Class[]{Record.class},
+                                (rProxy, rMethod, rArgs) -> {
+                                    if ("get".equals(rMethod.getName())) {
+                                        String campo = (String) rArgs[0];
+                                        if ("autor".equals(campo)) {
+                                            if ("sin_autor".equals(miId)) {
+                                                return Values.NULL;
+                                            }
+                                            if ("autor_vacio".equals(miId)) {
+                                                return Values.value("   ");
+                                            }
+                                            return Values.value("carlos");
+                                        }
+                                        if ("creado".equals(campo)) {
+                                            return Values.value(!"like_repetido".equals(miId));
+                                        }
+                                        return Values.value("carlos");
+                                    }
+                                    return null;
+                                }
+                        );
 
                         return (Result) Proxy.newProxyInstance(
                                 Result.class.getClassLoader(),
@@ -100,6 +126,9 @@ class ReaccionesIntegrationTest {
         grafoSocialRepository.setDriver(driverProxy);
     }
 
+    /**
+     * Verifica el flujo completo de creación y eliminación de Likes, validaciones de seguridad y Web Push.
+     */
     @Test
     void testDarYQuitarLikeConNotificacionPush() {
         // 1. Dar Like de otro usuario ('said' -> post de 'carlos'): registra LIKE y emite evento Push
@@ -113,27 +142,29 @@ class ReaccionesIntegrationTest {
         List<PushNotificationPayload> notificacionesCarlos = webPushService.obtenerNotificacionesDeUsuario("carlos");
         assertFalse(notificacionesCarlos.isEmpty());
 
-        // 2. Auto-like ('carlos' da like a su propio post): 200 sin auto-notificarse
-        given()
-        .when()
-                .post("/api/posts/p1/like/carlos")
-        .then()
-                .statusCode(200);
+        // 2. Casos de idempotencia: auto-like, like repetido y post sin autor (200 sin duplicar Push)
+        given().when().post("/api/posts/p1/like/carlos").then().statusCode(200);
+        given().when().post("/api/posts/p1/like/like_repetido").then().statusCode(200);
+        given().when().post("/api/posts/p1/like/sin_autor").then().statusCode(200);
+        given().when().post("/api/posts/p1/like/autor_vacio").then().statusCode(200);
 
-        // 3. Dar Like con usuario/post inexistente (404) y error de base de datos (500)
-        given()
-        .when()
-                .post("/api/posts/p1/like/no_existe")
-        .then()
-                .statusCode(404);
+        // 3. Validación de seguridad: usuario autenticado intentando reaccionar por otro (403 Forbidden)
+        SecurityContext ctxSaid = crearSecurityContext("said");
+        try (Response forbiddenLike = postController.darLikePost("p1", "otro_usuario", ctxSaid)) {
+            assertEquals(403, forbiddenLike.getStatus());
+        }
+        try (Response allowedLike = postController.darLikePost("p1", "said", ctxSaid)) {
+            assertEquals(200, allowedLike.getStatus());
+        }
+        try (Response forbiddenUnlike = postController.quitarLikePost("p1", "otro_usuario", ctxSaid)) {
+            assertEquals(403, forbiddenUnlike.getStatus());
+        }
 
-        given()
-        .when()
-                .post("/api/posts/p1/like/error_db")
-        .then()
-                .statusCode(500);
+        // 4. Dar Like con usuario/post inexistente (404) y error de base de datos (500)
+        given().when().post("/api/posts/p1/like/no_existe").then().statusCode(404);
+        given().when().post("/api/posts/p1/like/error_db").then().statusCode(500);
 
-        // 4. Quitar Like exitoso (200), inexistente (404) y error de base de datos (500)
+        // 5. Quitar Like exitoso (200), inexistente (404) y error de base de datos (500)
         given()
         .when()
                 .delete("/api/posts/p1/like/said")
@@ -141,16 +172,22 @@ class ReaccionesIntegrationTest {
                 .statusCode(200)
                 .body(containsString("Reacción LIKE eliminada exitosamente"));
 
-        given()
-        .when()
-                .delete("/api/posts/p1/like/no_existe")
-        .then()
-                .statusCode(404);
+        given().when().delete("/api/posts/p1/like/no_existe").then().statusCode(404);
+        given().when().delete("/api/posts/p1/like/error_db").then().statusCode(500);
+    }
 
-        given()
-        .when()
-                .delete("/api/posts/p1/like/error_db")
-        .then()
-                .statusCode(500);
+    /**
+     * Crea un SecurityContext simulado con el nombre de usuario indicado.
+     *
+     * @param username nombre del principal autenticado
+     * @return instancia de SecurityContext
+     */
+    private SecurityContext crearSecurityContext(String username) {
+        Principal principal = () -> username;
+        return (SecurityContext) Proxy.newProxyInstance(
+                SecurityContext.class.getClassLoader(),
+                new Class[]{SecurityContext.class},
+                (proxy, method, args) -> "getUserPrincipal".equals(method.getName()) ? principal : null
+        );
     }
 }
