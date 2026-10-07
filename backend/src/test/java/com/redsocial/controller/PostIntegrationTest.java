@@ -1,11 +1,8 @@
 package com.redsocial.controller;
 
-import com.redsocial.dto.PushSubscriptionRequest;
 import com.redsocial.repository.PostRepository;
-import com.redsocial.repository.PushSubscriptionRepository;
 import com.redsocial.service.S3StorageService;
 import io.smallrye.jwt.build.Jwt;
-import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +25,6 @@ import java.io.File;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.restassured.RestAssured.given;
@@ -56,12 +52,6 @@ class PostIntegrationTest {
     @BeforeEach
     void configurarMocksEnMemoria() {
         bucketExiste.set(false);
-        QuarkusMock.installMockForType(new PushSubscriptionRepository() {
-            @Override
-            public List<PushSubscriptionRequest> obtenerTodas() {
-                return List.of();
-            }
-        }, PushSubscriptionRepository.class);
 
         S3Client s3Proxy = (S3Client) Proxy.newProxyInstance(
                 S3Client.class.getClassLoader(),
