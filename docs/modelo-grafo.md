@@ -1,8 +1,9 @@
 # Modelo del Grafo — Red Social Distribuida (Neo4j)
 
-Este documento define el modelo de datos en grafo que usa la aplicación.
-Es la fuente de verdad para los nodos, relaciones, propiedades y restricciones
-que se implementan en la capa `repository/` del backend Quarkus.
+Este documento describe el modelo de datos en grafo de la aplicación y sus
+convenciones. Algunas partes del modelo de chat representan el diseño de
+conversaciones y semillas; la implementación activa del WebSocket se detalla
+en la sección de chat de este documento.
 
 > **Convención de nombres:** se usa `snake_case`, alineado con el acuerdo de API
 > del equipo (`docs/CONTRATOS.md`, que se incorpora en el PR #16), para que
@@ -98,7 +99,8 @@ Un mensaje individual dentro de una conversación (historial del chat).
 | `[:REACCIONA]`   | `(:Usuario)-->(:Post)`             | `tipo_reaccion`, `fecha` | Reacción (LIKE, LOVE, ...) a un post.     |
 | `[:PARTICIPA]`   | `(:Usuario)-->(:Conversacion)`     | —                    | El usuario es parte de la conversación.       |
 | `[:ENVIA]`       | `(:Usuario)-->(:Mensaje)`          | —                    | Quién escribió el mensaje.                     |
-| `[:EN]`          | `(:Mensaje)-->(:Conversacion)`     | —                    | A qué conversación pertenece el mensaje.      |
+| `[:EN]`          | `(:Mensaje)-->(:Conversacion)`     | —                    | Relación del modelo de conversación usado en las semillas. |
+| `[:DIRIGIDO_A]`  | `(:Mensaje)-->(:Usuario)`          | —                    | Destinatario del mensaje en el chat WebSocket activo. |
 
 Notas de diseño:
 - `SIGUE` es **dirigida**: `(A)-[:SIGUE]->(B)` no implica `(B)-[:SIGUE]->(A)`.
@@ -107,8 +109,13 @@ Notas de diseño:
   mismo patrón sirve para LIKE/LOVE/HAHA cambiando solo una propiedad.
   *(Se usa `tipo_reaccion` según la issue #7. ⚠️ `CONTRATOS.md` lo lista como `tipo`;
   pendiente unificar con Said para que el backend lea el mismo nombre.)*
-- El chat usa un nodo `Conversacion` intermedio en vez de una relación directa
-  `Usuario-Usuario`, para poder colgar muchos `Mensaje` y escalar a grupos.
+- El esquema y las semillas incluyen `Conversacion`, `PARTICIPA` y `EN` como
+  modelo de conversación, con posibilidad de representar grupos.
+- **Implementación activa del chat:** `ChatRepository` guarda cada mensaje con
+  `(:Usuario)-[:ENVIA]->(:Mensaje)-[:DIRIGIDO_A]->(:Usuario)`. El historial se
+  consulta entre el usuario autenticado y sus emisores/destinatarios, con un
+  máximo de 500 mensajes. El endpoint WebSocket actual no crea ni consulta
+  nodos `Conversacion`.
 
 ---
 
