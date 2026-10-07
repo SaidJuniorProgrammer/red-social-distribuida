@@ -37,7 +37,7 @@ it('maneja el error de un video y permite un reintento manual', () => {
   expect(video).toHaveAttribute('controls')
 })
 
-it('restablece el error cuando cambia el archivo', () => {
+it('vuelve a intentar un archivo al mostrar la secuencia A → B → A', () => {
   const view = render(<PostMedia className="post-card__media" src="https://cdn.example/uno.jpg"
     type="image" label="Primera imagen" />)
 
@@ -49,6 +49,14 @@ it('restablece el error cuando cambia el archivo', () => {
   expect(screen.getByRole('img', { name: 'Segunda imagen' })).toHaveAttribute(
     'src',
     'https://cdn.example/dos.jpg',
+  )
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+  view.rerender(<PostMedia className="post-card__media" src="https://cdn.example/uno.jpg"
+    type="image" label="Primera imagen otra vez" />)
+  expect(screen.getByRole('img', { name: 'Primera imagen otra vez' })).toHaveAttribute(
+    'src',
+    'https://cdn.example/uno.jpg',
   )
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })

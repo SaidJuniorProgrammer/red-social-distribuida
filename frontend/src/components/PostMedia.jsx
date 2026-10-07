@@ -1,14 +1,12 @@
 import { useState } from 'react'
 
-function PostMedia({ src, type, label, className = '' }) {
-  const [failedMedia, setFailedMedia] = useState(null)
+function MediaContent({ src, type, label, className }) {
+  const [hasError, setHasError] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const mediaIdentity = `${type}:${src}`
-  const hasError = failedMedia === mediaIdentity
 
   const retry = () => {
     setAttempt((current) => current + 1)
-    setFailedMedia(null)
+    setHasError(false)
   }
 
   if (hasError) {
@@ -26,12 +24,18 @@ function PostMedia({ src, type, label, className = '' }) {
 
   if (type === 'video') {
     return <video key={attempt} className={className} src={src} controls muted preload="metadata"
-      aria-label={label} onError={() => setFailedMedia(mediaIdentity)}>
+      aria-label={label} onError={() => setHasError(true)}>
       Tu navegador no admite este video.
     </video>
   }
   return <img key={attempt} className={className} src={src} alt={label} loading="lazy"
-    onError={() => setFailedMedia(mediaIdentity)} />
+    onError={() => setHasError(true)} />
+}
+
+function PostMedia({ src, type, label, className = '' }) {
+  const mediaIdentity = `${type}:${src}`
+  return <MediaContent key={mediaIdentity} src={src} type={type} label={label}
+    className={className} />
 }
 
 export default PostMedia
