@@ -109,7 +109,7 @@ a { color: inherit; }
 .post-card__header strong { font-size: .82rem; }
 .post-card__header div span, .post-card__header time { color: #81788c; font-size: .68rem; }
 .post-card__text { margin: 0; padding: .4rem 1.3rem 1.2rem; color: #332b3f; font-size: .9rem; line-height: 1.6; overflow-wrap: anywhere; }
-.post-card__media { display: block; width: 100%; max-height: 32rem; object-fit: cover; background: #ede8f4; }
+.post-card__media { display: block; width: 100%; height: auto; object-fit: contain; background: #ede8f4; }
 .post-card__footer { padding: .75rem 1.3rem; border-top: 1px solid #eee8f4; }
 .post-card__reaction-summary { min-height: 2.35rem; display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .7rem; color: #6b6475; font-size: .75rem; }
 .post-card__reaction-summary > span:first-child { color: #8a3bb8; font-size: 1.15rem; }
