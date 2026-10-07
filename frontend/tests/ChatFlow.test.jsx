@@ -107,6 +107,12 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
     'page',
   )
   expect(screen.getByRole('status')).toHaveTextContent('En línea')
+  const chatRoom = screen.getByRole('region', { name: 'Conversación' })
+  const conversationList = screen.getByRole('region', { name: 'Conversaciones' })
+  expect(chatRoom.compareDocumentPosition(conversationList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(chatRoom.closest('.app-layout')).toHaveClass('app-layout--chat')
+  const history = screen.getByRole('log', { name: 'Historial de mensajes' })
+  history.scrollTo = vi.fn()
 
   fireEvent.change(screen.getByLabelText('Buscar usuario registrado'), {
     target: { value: 'said' },
@@ -144,6 +150,7 @@ it('conecta al iniciar sesión y actualiza el chat sin recargar la página', asy
   })
 
   expect(screen.getAllByText('Recibido en tiempo real')).not.toHaveLength(0)
+  expect(history.scrollTo).toHaveBeenCalledWith({ top: history.scrollHeight, behavior: 'auto' })
   expect(screen.getAllByText('@said')).not.toHaveLength(0)
 
   fireEvent.change(screen.getByLabelText('Mensaje'), {

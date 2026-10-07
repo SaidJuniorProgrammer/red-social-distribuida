@@ -1,4 +1,6 @@
 import { formatPublishedAt } from '../utils/dateTime.js'
+import { Link } from 'react-router-dom'
+import PostMedia from './PostMedia.jsx'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
 
 function PostCard({ isPending = false, onToggleLike, post }) {
@@ -11,7 +13,7 @@ function PostCard({ isPending = false, onToggleLike, post }) {
           {getInitial(post.author)}
         </span>
         <div>
-          <strong>{formatDisplayName(post.author)}</strong>
+          <Link to={`/perfil/${encodeURIComponent(post.author)}`}><strong>{formatDisplayName(post.author)}</strong></Link>
           <span>@{post.author}</span>
         </div>
         {post.publishedAt && (
@@ -21,11 +23,8 @@ function PostCard({ isPending = false, onToggleLike, post }) {
 
       <p className="post-card__text">{post.text}</p>
       {post.mediaUrl && (
-        <img
-          className="post-card__media"
-          src={post.mediaUrl}
-          alt={`Contenido publicado por @${post.author}`}
-        />
+        <PostMedia className="post-card__media" src={post.mediaUrl} type={post.mediaType}
+          label={`Contenido publicado por @${post.author}`} />
       )}
 
       <footer className="post-card__footer">

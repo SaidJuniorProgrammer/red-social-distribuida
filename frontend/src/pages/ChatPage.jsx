@@ -37,7 +37,7 @@ function ChatPage() {
   const [sendError, setSendError] = useState('')
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false)
   const recipientInputRef = useRef(null)
-  const messagesEndRef = useRef(null)
+  const messagesViewportRef = useRef(null)
   const activeRecipient = selectedRecipient
   const isConnected = status === CHAT_CONNECTION_STATUS.connected
   const statusLabel = statusLabels[status] ?? 'Sin conexión'
@@ -119,7 +119,8 @@ function ChatPage() {
   }, [activeRecipient, messages, user?.username])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth' })
+    const viewport = messagesViewportRef.current
+    viewport?.scrollTo?.({ top: viewport.scrollHeight, behavior: 'auto' })
   }, [activeMessages])
 
   const startNewConversation = () => {
@@ -194,6 +195,115 @@ function ChatPage() {
 
   return (
     <main className={`messages-layout${isMobileChatOpen ? ' messages-layout--chat-open' : ''}`}>
+      <section className="chat-room" aria-label="Conversación">
+        <header className="chat-room__header">
+          <button
+            className="chat-room__back"
+            type="button"
+            aria-label="Volver a conversaciones"
+            onClick={() => setIsMobileChatOpen(false)}
+          >
+            ←
+          </button>
+          <span className="messages-avatar" aria-hidden="true">
+            {getInitial(activeRecipient)}
+          </span>
+          <div className="chat-room__identity">
+            <strong>{formatDisplayName(activeRecipient)}</strong>
+            <span>{activeRecipient ? `@${activeRecipient}` : 'Selecciona un usuario'}</span>
+          </div>
+          <p className={`chat-status chat-status--${status}`} role="status">
+            <span aria-hidden="true" />
+            {statusLabel}
+          </p>
+        </header>
+
+        {(connectionError || deliveryError || sendError) && (
+          <p className="form-message form-message--error chat-alert" role="alert">
+            {sendError || deliveryError || connectionError}
+          </p>
+        )}
+
+        <div
+          className="chat-messages"
+          ref={messagesViewportRef}
+          role="log"
+          aria-label="Historial de mensajes"
+          aria-live="polite"
+          aria-relevant="additions"
+        >
+          {activeMessages.length === 0 ? (
+            <div className="chat-empty">
+              <span aria-hidden="true">✉</span>
+              <h2>Inicia una conversación</h2>
+              <p>Elige un usuario y envíale un mensaje. Si está desconectado, lo verá cuando vuelva.</p>
+            </div>
+          ) : (
+            <>
+              <p className="chat-messages__day">Conversación iniciada hoy</p>
+              {activeMessages.map((message) => {
+                const isOwnMessage = message.emisor === user?.username
+
+                return (
+                  <article
+                    className={`chat-message${isOwnMessage ? ' chat-message--own' : ''}`}
+                    key={message.id}
+                  >
+                    {!isOwnMessage && (
+                      <span className="messages-avatar chat-message__avatar" aria-hidden="true">
+                        {getInitial(message.emisor)}
+                      </span>
+                    )}
+                    <div className="chat-message__bubble">
+                      <p>{message.contenido}</p>
+                      <time dateTime={message.timestamp}>
+                        {formatMessageTime(message.timestamp)}
+                      </time>
+                    </div>
+                  </article>
+                )
+              })}
+            </>
+          )}
+        </div>
+
+        <form className="chat-composer" onSubmit={handleSubmit}>
+          <label className="sr-only" htmlFor="chat-message">Mensaje</label>
+          <div>
+            <textarea
+              id="chat-message"
+              rows="1"
+              value={content}
+              placeholder={
+                isConnected && activeRecipient
+                  ? 'Escribe un mensaje…'
+                  : isConnected
+                    ? 'Selecciona un usuario registrado…'
+                    : 'Esperando conexión…'
+              }
+              disabled={!isConnected || !activeRecipient}
+              onChange={({ target }) => {
+                setContent(target.value)
+                setSendError('')
+              }}
+              onKeyDown={handleComposerKeyDown}
+            />
+            <small>Presiona Enter para enviar · Shift+Enter para una nueva línea</small>
+          </div>
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={!isConnected || !activeRecipient || !content.trim()}
+          >
+            Enviar <span aria-hidden="true">↗</span>
+          </button>
+        </form>
+
+        <footer className="chat-room__footer">
+          Pachyweb Realtime · nodo de mensajería activo
+        </footer>
+      </section>
+
       <section className="conversation-list" aria-label="Conversaciones">
         <header className="conversation-list__header">
           <div>
@@ -288,113 +398,6 @@ function ChatPage() {
         <footer className="conversation-list__footer">
           <span className={`connection-dot connection-dot--${status}`} aria-hidden="true" />
           {isConnected ? 'Sesión WebSocket lista' : statusLabel}
-        </footer>
-      </section>
-
-      <section className="chat-room" aria-label="Conversación">
-        <header className="chat-room__header">
-          <button
-            className="chat-room__back"
-            type="button"
-            aria-label="Volver a conversaciones"
-            onClick={() => setIsMobileChatOpen(false)}
-          >
-            ←
-          </button>
-          <span className="messages-avatar" aria-hidden="true">
-            {getInitial(activeRecipient)}
-          </span>
-          <div className="chat-room__identity">
-            <strong>{formatDisplayName(activeRecipient)}</strong>
-            <span>{activeRecipient ? `@${activeRecipient}` : 'Selecciona un usuario'}</span>
-          </div>
-          <p className={`chat-status chat-status--${status}`} role="status">
-            <span aria-hidden="true" />
-            {statusLabel}
-          </p>
-        </header>
-
-        {(connectionError || deliveryError || sendError) && (
-          <p className="form-message form-message--error chat-alert" role="alert">
-            {sendError || deliveryError || connectionError}
-          </p>
-        )}
-
-        <div
-          className="chat-messages"
-          aria-live="polite"
-          aria-relevant="additions"
-        >
-          {activeMessages.length === 0 ? (
-            <div className="chat-empty">
-              <span aria-hidden="true">✉</span>
-              <h2>Inicia una conversación</h2>
-              <p>Elige un usuario y envíale un mensaje. Si está desconectado, lo verá cuando vuelva.</p>
-            </div>
-          ) : (
-            <>
-              <p className="chat-messages__day">Conversación iniciada hoy</p>
-              {activeMessages.map((message) => {
-                const isOwnMessage = message.emisor === user?.username
-
-                return (
-                  <article
-                    className={`chat-message${isOwnMessage ? ' chat-message--own' : ''}`}
-                    key={message.id}
-                  >
-                    {!isOwnMessage && (
-                      <span className="messages-avatar chat-message__avatar" aria-hidden="true">
-                        {getInitial(message.emisor)}
-                      </span>
-                    )}
-                    <div className="chat-message__bubble">
-                      <p>{message.contenido}</p>
-                      <time dateTime={message.timestamp}>
-                        {formatMessageTime(message.timestamp)}
-                      </time>
-                    </div>
-                  </article>
-                )
-              })}
-            </>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <form className="chat-composer" onSubmit={handleSubmit}>
-          <label className="sr-only" htmlFor="chat-message">Mensaje</label>
-          <div>
-            <textarea
-              id="chat-message"
-              rows="1"
-              value={content}
-              placeholder={
-                isConnected && activeRecipient
-                  ? 'Escribe un mensaje…'
-                  : isConnected
-                    ? 'Selecciona un usuario registrado…'
-                    : 'Esperando conexión…'
-              }
-              disabled={!isConnected || !activeRecipient}
-              onChange={({ target }) => {
-                setContent(target.value)
-                setSendError('')
-              }}
-              onKeyDown={handleComposerKeyDown}
-            />
-            <small>Presiona Enter para enviar · Shift+Enter para una nueva línea</small>
-          </div>
-          <button
-            className="primary-button"
-            type="submit"
-            disabled={!isConnected || !activeRecipient || !content.trim()}
-          >
-            Enviar <span aria-hidden="true">↗</span>
-          </button>
-        </form>
-
-        <footer className="chat-room__footer">
-          Pachyweb Realtime · nodo de mensajería activo
         </footer>
       </section>
     </main>

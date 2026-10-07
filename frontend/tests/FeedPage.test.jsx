@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, expect, it, vi } from 'vitest'
 import AuthContext from '../src/context/authContext.js'
 import FeedPage from '../src/pages/FeedPage.jsx'
@@ -8,9 +9,11 @@ const user = { username: 'oscar' }
 
 function renderFeed() {
   return render(
-    <AuthContext.Provider value={{ user }}>
-      <FeedPage />
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <AuthContext.Provider value={{ user }}>
+        <FeedPage />
+      </AuthContext.Provider>
+    </MemoryRouter>,
   )
 }
 
@@ -37,19 +40,23 @@ it('carga el feed y permite dar y quitar Me gusta', async () => {
   renderFeed()
 
   expect(await screen.findByText('Una publicación distribuida')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Crear publicación/ })).toHaveAttribute(
+    'href',
+    '/publicar',
+  )
   expect(api.get).toHaveBeenCalledWith('/feed/oscar', expect.objectContaining({
     signal: expect.any(AbortSignal),
   }))
 
   fireEvent.click(screen.getByRole('button', { name: 'Me gusta' }))
-  expect(screen.getByLabelText('3 reacciones')).toBeInTheDocument()
+  expect(await screen.findByLabelText('3 reacciones')).toBeInTheDocument()
   await waitFor(() => expect(createLike).toHaveBeenCalledWith('/posts/post%2F1/like/oscar'))
 
   const unlikeButton = await screen.findByRole('button', { name: 'Quitar Me gusta' })
   await waitFor(() => expect(unlikeButton).toBeEnabled())
   fireEvent.click(unlikeButton)
 
-  expect(screen.getByLabelText('2 reacciones')).toBeInTheDocument()
+  expect(await screen.findByLabelText('2 reacciones')).toBeInTheDocument()
   await waitFor(() => expect(removeLike).toHaveBeenCalledWith('/posts/post%2F1/like/oscar'))
 })
 

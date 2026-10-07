@@ -187,6 +187,7 @@ class WebPushIntegrationTest {
     void testFlujoCompletoWebPushYVapid() throws Exception {
         String tokenAnthony = tokenPara("anthony");
         String tokenEstalin = tokenPara("estalin");
+        String tokenCarlos = tokenPara("carlos");
 
         // 1. Verificar generación de llaves VAPID
         assertNotNull(webPushService.getVapidPublicKey());
@@ -356,8 +357,8 @@ class WebPushIntegrationTest {
         tempFile.deleteOnExit();
 
         given()
+                .header("Authorization", "Bearer " + tokenCarlos)
                 .multiPart("texto", "Publicacion que dispara Web Push")
-                .multiPart("autor", "carlos")
                 .multiPart("archivo", tempFile, "image/jpeg")
         .when()
                 .post("/api/posts")

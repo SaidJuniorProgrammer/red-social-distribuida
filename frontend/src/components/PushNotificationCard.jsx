@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   isWebPushSupported,
   subscribeUserToPush,
+  getCurrentPushSubscription,
+  unsubscribeUserFromPush,
 } from '../services/webpush.js'
 
 const PUSH_STATE = Object.freeze({
@@ -31,7 +33,7 @@ function PushNotificationCard() {
         return
       }
 
-      if (Notification.permission === 'granted') {
+      if (Notification.permission === 'granted' && await getCurrentPushSubscription()) {
         await subscribeUserToPush()
         if (isCurrent) setState(PUSH_STATE.active)
         return
@@ -53,13 +55,18 @@ function PushNotificationCard() {
     setErrorMessage('')
 
     try {
-      await subscribeUserToPush()
-      setState(PUSH_STATE.active)
+      if (state === PUSH_STATE.active) {
+        await unsubscribeUserFromPush()
+        setState(PUSH_STATE.available)
+      } else {
+        await subscribeUserToPush()
+        setState(PUSH_STATE.active)
+      }
     } catch (error) {
       setState(
         Notification.permission === 'denied'
           ? PUSH_STATE.denied
-          : PUSH_STATE.available,
+          : state === PUSH_STATE.active ? PUSH_STATE.active : PUSH_STATE.available,
       )
       setErrorMessage(error.message)
     }
@@ -78,9 +85,9 @@ function PushNotificationCard() {
       <span className="push-card__icon" aria-hidden="true">◔</span>
       <div className="push-card__content">
         <p className="push-card__eyebrow">Actividad de tu red</p>
-        <h2 id="push-title">Notificaciones de publicaciones</h2>
+        <h2 id="push-title">Alertas del navegador</h2>
         <p>
-          Recibe una alerta cuando alguien que sigues publique algo nuevo,
+          Recibe una alerta de publicaciones y likes,
           incluso si estás en otra pestaña.
         </p>
         {isActive && <p className="push-card__success" role="status">Notificaciones activadas</p>}
@@ -101,10 +108,10 @@ function PushNotificationCard() {
       <button
         className="secondary-button"
         type="button"
-        disabled={cannotActivate || isActive || isActivating}
+        disabled={cannotActivate || isActivating}
         onClick={activateNotifications}
       >
-        {isActivating ? 'Activando…' : isActive ? 'Activadas' : 'Activar'}
+        {isActivating ? 'Guardando…' : isActive ? 'Desactivar' : 'Activar'}
       </button>
     </section>
   )

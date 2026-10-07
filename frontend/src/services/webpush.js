@@ -30,6 +30,22 @@ export async function getCurrentPushSubscription() {
   return registration.pushManager.getSubscription()
 }
 
+export async function unsubscribeUserFromPush() {
+  const subscription = await getCurrentPushSubscription()
+  if (!subscription) return
+  try {
+    await api.delete('/push/subscribe', { params: { endpoint: subscription.endpoint } })
+  } catch (error) {
+    if (error.response?.status !== 404) throw error
+  }
+  await subscription.unsubscribe()
+}
+
+export async function getNotifications(username, { signal } = {}) {
+  const { data } = await api.get(`/push/notificaciones/${encodeURIComponent(username)}`, { signal })
+  return Array.isArray(data?.notificaciones) ? data.notificaciones : []
+}
+
 export async function registerPushSubscription(subscription) {
   const subscriptionData = subscription.toJSON()
   await api.post('/push/subscribe', {
