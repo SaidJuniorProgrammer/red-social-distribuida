@@ -288,6 +288,14 @@ a { color: inherit; }
 .post-card__header a:hover { text-decoration: underline; }
 .notification-inbox { margin-block: 1.5rem; padding: 1.25rem; background: #fff; border: 1px solid #e2d9ee; border-radius: 1rem; }
 .notification-inbox__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.notification-inbox__actions .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
+.notification-inbox__actions .secondary-button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 .4rem .9rem rgb(111 49 207 / 14%); }
+.notification-inbox__actions .secondary-button:active:not(:disabled) { transform: scale(.97); }
+.notification-inbox__actions .secondary-button:disabled { cursor: progress; opacity: .7; }
+.notification-inbox__btn-icon { display: inline-block; line-height: 1; transition: transform 240ms ease; }
+.notification-inbox__actions .secondary-button:hover:not(:disabled) .notification-inbox__btn-icon--refresh { transform: rotate(180deg); }
+.notification-inbox__actions .secondary-button:hover:not(:disabled) .notification-inbox__btn-icon--check { transform: scale(1.25); }
+.notification-inbox__btn-icon--spinning { animation: spin .7s linear infinite; }
 .notification-inbox ul { display: grid; gap: .75rem; padding: 0; list-style: none; }
 .notification-inbox__item { display: flex; align-items: center; gap: .85rem; padding: .75rem .85rem; border: 1px solid #ece4f7; border-radius: .9rem; overflow-wrap: anywhere; }
 .notification-inbox__unread { border-color: #d9c7f3; background: #f7f2ff; }

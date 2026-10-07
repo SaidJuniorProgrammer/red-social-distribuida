@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import PushNotificationCard from '../components/PushNotificationCard.jsx'
 import { Link } from 'react-router-dom'
 import useNotifications from '../hooks/useNotifications.js'
@@ -15,6 +16,17 @@ import {
 
 function NotificationsPage() {
   const { error, loading, markAllAsRead, markAsRead, notifications, refresh, unreadCount } = useNotifications()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleRefresh = async () => {
+    if (refreshing) return
+    setRefreshing(true)
+    try {
+      await refresh()
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   return (
     <main className="feed-placeholder">
@@ -26,10 +38,19 @@ function NotificationsPage() {
         <div className="notification-inbox__actions">
           {unreadCount > 0 && (
             <button type="button" className="secondary-button" onClick={() => void markAllAsRead()}>
+              <span className="notification-inbox__btn-icon notification-inbox__btn-icon--check" aria-hidden="true">✓</span>
               Marcar todas como leídas
             </button>
           )}
-          <button type="button" className="secondary-button" onClick={() => void refresh()}>Actualizar</button>
+          <button type="button" className="secondary-button" onClick={() => void handleRefresh()} disabled={refreshing}>
+            <span
+              className={`notification-inbox__btn-icon notification-inbox__btn-icon--refresh${refreshing ? ' notification-inbox__btn-icon--spinning' : ''}`}
+              aria-hidden="true"
+            >
+              ↻
+            </span>
+            Actualizar
+          </button>
         </div>
       </header>
       <section className="notification-inbox" aria-label="Actividad reciente">
