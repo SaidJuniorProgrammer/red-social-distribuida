@@ -5,6 +5,7 @@ import com.redsocial.dto.ChatDeliveryError;
 import com.redsocial.dto.ChatHistory;
 import com.redsocial.dto.ChatMessage;
 import com.redsocial.repository.ChatRepository;
+import com.redsocial.service.WebPushService;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.websockets.next.OnClose;
@@ -42,6 +43,9 @@ public class ChatEndpoint {
 
     @Inject
     ChatRepository chatRepository;
+
+    @Inject
+    WebPushService webPushService;
 
     @OnOpen
     @Blocking
@@ -108,6 +112,10 @@ public class ChatEndpoint {
             }
 
             ChatMessage mensaje = mensajeGuardado.get();
+
+            // SOLUCIÓN CODERABBIT: Disparar la alerta Web Push del chat después del guardado exitoso
+            webPushService.notificarNuevoMensaje(mensaje.emisor_id(), mensaje.destinatario_id(), mensaje.id());
+
             String payloadJson = objectMapper.writeValueAsString(mensaje);
             WebSocketConnection sesionDestinatario = sesiones.get(mensajeNormalizado.destinatario_id());
             if (sesionDestinatario == null || sesionDestinatario.equals(connection)) {

@@ -8,6 +8,7 @@ import com.redsocial.dto.SugerenciaResponse;
 import com.redsocial.dto.UsuarioResumenResponse;
 import com.redsocial.repository.GrafoSocialRepository;
 import com.redsocial.repository.UsuarioRepository;
+import com.redsocial.service.WebPushService;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
@@ -44,12 +45,9 @@ public class GrafoSocialController {
     @Inject
     SecurityIdentity securityIdentity;
 
-    /**
-     * Busca usuarios registrados cuyo nombre de usuario coincida con el término indicado.
-     *
-     * @param query texto de búsqueda
-     * @return respuesta HTTP con la lista de usuarios encontrados
-     */
+    @Inject
+    WebPushService webPushService;
+
     @GET
     @Authenticated
     @Path("/usuarios")
@@ -79,12 +77,6 @@ public class GrafoSocialController {
         }
     }
 
-    /**
-     * Obtiene las publicaciones públicas más recientes para el inicio del usuario.
-     *
-     * @param miId identificador o username del usuario
-     * @return respuesta HTTP con las publicaciones del feed
-     */
     @GET
     @Path("/feed/{mi_id}")
     public Response obtenerFeed(@PathParam("mi_id") String miId) {
@@ -100,12 +92,6 @@ public class GrafoSocialController {
         }
     }
 
-    /**
-     * Obtiene el historial de publicaciones propias de un usuario para su vista de perfil.
-     *
-     * @param miId identificador o username del usuario
-     * @return respuesta HTTP con la lista de publicaciones del perfil
-     */
     @GET
     @Path("/usuarios/{mi_id}/posts")
     public Response obtenerPostsDeUsuario(@PathParam("mi_id") String miId) {
@@ -121,12 +107,6 @@ public class GrafoSocialController {
         }
     }
 
-    /**
-     * Obtiene la lista de seguidores de un usuario.
-     *
-     * @param miId identificador o username del usuario
-     * @return respuesta HTTP con la lista de seguidores
-     */
     @GET
     @Path("/usuarios/{mi_id}/seguidores")
     public Response obtenerSeguidores(@PathParam("mi_id") String miId) {
@@ -141,12 +121,6 @@ public class GrafoSocialController {
         }
     }
 
-    /**
-     * Obtiene la lista de cuentas seguidas por un usuario.
-     *
-     * @param miId identificador o username del usuario
-     * @return respuesta HTTP con la lista de seguidos
-     */
     @GET
     @Path("/usuarios/{mi_id}/seguidos")
     public Response obtenerSeguidos(@PathParam("mi_id") String miId) {
@@ -161,13 +135,6 @@ public class GrafoSocialController {
         }
     }
 
-    /**
-     * Crea la relación de seguimiento [:SIGUE] entre dos usuarios.
-     *
-     * @param miId      identificador del usuario seguidor
-     * @param idDestino identificador del usuario a seguir
-     * @return respuesta HTTP con el estado de la relación
-     */
     @POST
     @Authenticated
     @Path("/usuarios/{mi_id}/seguir/{id_destino}")
@@ -183,12 +150,16 @@ public class GrafoSocialController {
                         .build();
             }
 
-            boolean creado = grafoSocialRepository.seguirUsuario(miId.trim(), idDestino.trim());
-            if (!creado) {
+            // SOLUCIÓN CODERABBIT: El repositorio ahora debe devolver el username en vez de un boolean
+            String usernameDestino = grafoSocialRepository.seguirUsuario(miId.trim(), idDestino.trim());
+            if (usernameDestino == null || usernameDestino.isBlank()) {
                 return Response.status(Response.Status.NOT_FOUND)
                         .entity(new ApiErrorResponse("USER_NOT_FOUND", null, "Uno de los usuarios no existe."))
                         .build();
             }
+
+            // Enviamos la notificación usando el Username válido devuelto por la base de datos
+            webPushService.notificarNuevoSeguidor(miId.trim(), usernameDestino);
 
             return Response.ok(new GrafoStatusResponse(STATUS_SUCCESS, "Relación [:SIGUE] creada exitosamente")).build();
         } catch (Exception e) {
@@ -199,13 +170,6 @@ public class GrafoSocialController {
         }
     }
 
-    /**
-     * Elimina la relación de seguimiento [:SIGUE] entre dos usuarios.
-     *
-     * @param miId      identificador del usuario seguidor
-     * @param idDestino identificador del usuario seguido
-     * @return respuesta HTTP con el estado de la eliminación
-     */
     @DELETE
     @Authenticated
     @Path("/usuarios/{mi_id}/seguir/{id_destino}")
@@ -241,12 +205,6 @@ public class GrafoSocialController {
                 .build();
     }
 
-    /**
-     * Obtiene sugerencias de usuarios a seguir basadas en conexiones en común.
-     *
-     * @param miId identificador o username del usuario
-     * @return respuesta HTTP con la lista de usuarios sugeridos
-     */
     @GET
     @Path("/usuarios/{mi_id}/sugerencias")
     public Response obtenerSugerencias(@PathParam("mi_id") String miId) {

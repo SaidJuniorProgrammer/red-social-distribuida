@@ -153,9 +153,9 @@ public class GrafoSocialRepository {
      *
      * @param miId      identificador del usuario seguidor
      * @param idDestino identificador del usuario a seguir
-     * @return true si ambos usuarios existen y se registró la relación
+     * @return el username del usuario seguido si la relación fue creada, o null si no se encontró
      */
-    public boolean seguirUsuario(String miId, String idDestino) {
+    public String seguirUsuario(String miId, String idDestino) {
         String query = """
             MATCH (a:Usuario), (b:Usuario)
             WHERE (a.id_usuario = $miId OR a.username = $miId OR a.id = $miId)
@@ -169,7 +169,11 @@ public class GrafoSocialRepository {
         try (var session = driver.session()) {
             return session.executeWrite(tx -> {
                 var result = tx.run(query, Values.parameters(PARAM_MI_ID, miId, PARAM_ID_DESTINO, idDestino));
-                return result.hasNext();
+                if (result.hasNext()) {
+                    // SOLUCIÓN CODERABBIT: Retornar el username real validado por la base de datos
+                    return result.next().get("seguido").asString(null);
+                }
+                return null;
             });
         }
     }

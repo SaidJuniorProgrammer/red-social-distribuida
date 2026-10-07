@@ -1,6 +1,7 @@
 package com.redsocial.service;
 
 import com.redsocial.dto.PushSubscriptionRequest;
+import com.redsocial.repository.NotificacionRepository;
 import com.redsocial.repository.PostRepository;
 import com.redsocial.repository.PushSubscriptionRepository;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,16 @@ class WebPushServiceTest {
         service.webPushGateway = gateway;
         service.configuredPublicKey = Optional.of("publica");
         service.configuredPrivateKey = Optional.of("privada");
+
+        // SOLUCIÓN: Usamos una clase anónima (dummy) en lugar de Mockito para evitar errores de importación
+        service.notificacionRepository = new NotificacionRepository() {
+            @Override
+            public void guardarNotificacion(String idNotificacion, String tipo, String actor,
+                                            String destinatario, String mensaje, String referencia, String fecha) {
+                // No hacer nada durante las pruebas unitarias
+            }
+        };
+
         return service;
     }
 
