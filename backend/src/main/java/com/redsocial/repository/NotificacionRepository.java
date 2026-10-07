@@ -17,10 +17,11 @@ public class NotificacionRepository {
 
     public void guardarNotificacion(String idNotificacion, String tipo, String actor, 
                                     String destinatario, String mensaje, String referencia, String fecha) {
+        // SOLUCIÓN CODERABBIT: Se busca por 'id' en lugar de 'id_usuario'
         String query = """
             MATCH (dest:Usuario), (orig:Usuario)
-            WHERE (dest.id_usuario = $destinatario OR dest.username = $destinatario)
-              AND (orig.id_usuario = $actor OR orig.username = $actor)
+            WHERE (dest.id = $destinatario OR dest.username = $destinatario)
+              AND (orig.id = $actor OR orig.username = $actor)
             MERGE (n:Notificacion {id_notificacion: $idNotificacion})
             ON CREATE SET n.tipo = $tipo, 
                           n.mensaje = $mensaje, 
@@ -48,9 +49,9 @@ public class NotificacionRepository {
     }
 
     public List<NotificacionResponse> listarNotificaciones(String destinatario) {
+        // SOLUCIÓN CODERABBIT: Se elimina el OR inseguro y se obliga a emparejar por username
         String query = """
-            MATCH (dest:Usuario)-[:RECIBE]->(n:Notificacion)-[:ORIGINADA_POR]->(orig:Usuario)
-            WHERE dest.id_usuario = $destinatario OR dest.username = $destinatario
+            MATCH (dest:Usuario {username: $destinatario})-[:RECIBE]->(n:Notificacion)-[:ORIGINADA_POR]->(orig:Usuario)
             RETURN n.id_notificacion AS id, n.tipo AS tipo, orig.username AS actor,
                    dest.username AS destinatario, n.mensaje AS mensaje, n.referencia AS referencia,
                    n.fecha AS fecha, n.leido AS leido
@@ -82,9 +83,7 @@ public class NotificacionRepository {
 
     public boolean marcarComoLeida(String idNotificacion, String destinatario) {
         String query = """
-            MATCH (dest:Usuario)-[:RECIBE]->(n:Notificacion)
-            WHERE (dest.id_usuario = $destinatario OR dest.username = $destinatario)
-              AND n.id_notificacion = $idNotificacion
+            MATCH (dest:Usuario {username: $destinatario})-[:RECIBE]->(n:Notificacion {id_notificacion: $idNotificacion})
             SET n.leido = true
             RETURN n.id_notificacion
             """;
@@ -102,9 +101,8 @@ public class NotificacionRepository {
 
     public long marcarTodasComoLeidas(String destinatario) {
         String query = """
-            MATCH (dest:Usuario)-[:RECIBE]->(n:Notificacion)
-            WHERE (dest.id_usuario = $destinatario OR dest.username = $destinatario)
-              AND n.leido = false
+            MATCH (dest:Usuario {username: $destinatario})-[:RECIBE]->(n:Notificacion)
+            WHERE n.leido = false
             SET n.leido = true
             RETURN count(n) AS actualizadas
             """;
@@ -122,9 +120,8 @@ public class NotificacionRepository {
 
     public long contarNoLeidas(String destinatario) {
         String query = """
-            MATCH (dest:Usuario)-[:RECIBE]->(n:Notificacion)
-            WHERE (dest.id_usuario = $destinatario OR dest.username = $destinatario)
-              AND n.leido = false
+            MATCH (dest:Usuario {username: $destinatario})-[:RECIBE]->(n:Notificacion)
+            WHERE n.leido = false
             RETURN count(n) AS no_leidas
             """;
 

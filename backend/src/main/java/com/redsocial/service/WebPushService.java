@@ -140,7 +140,8 @@ public class WebPushService {
         String referencia = "/feed"; // Navega al feed
 
         for (String seguidor : seguidores) {
-            String idNotificacion = "PUBLICACION_" + autor.trim() + "_" + idPost;
+            // SOLUCIÓN CODERABBIT: Añadimos el seguidor al ID para no compartir el mismo nodo en Neo4j
+            String idNotificacion = "PUBLICACION_" + autor.trim() + "_" + idPost + "_" + seguidor.trim();
             procesarYEnviarNotificacion(idNotificacion, "PUBLICACION", autor.trim(), seguidor, titulo, mensaje, referencia);
         }
     }
