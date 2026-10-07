@@ -47,7 +47,9 @@ it('crea una publicación de solo texto y vuelve a Inicio', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Publicar' }))
 
   expect(await screen.findByRole('heading', { name: 'Inicio actualizado' })).toBeInTheDocument()
-  expect(request).toHaveBeenCalledWith('/posts', expect.any(FormData))
+  expect(request).toHaveBeenCalledWith('/posts', expect.any(FormData), {
+    headers: { 'Content-Type': undefined },
+  })
   const formData = request.mock.calls[0][1]
   expect(formData.get('texto')).toBe('Hola red')
   expect(formData.get('archivo')).toBeNull()

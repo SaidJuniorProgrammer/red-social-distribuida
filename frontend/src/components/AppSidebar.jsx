@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import useAuth from '../hooks/useAuth.js'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
 import BrandMark from './BrandMark.jsx'
@@ -8,13 +9,22 @@ const navigationItems = [
   { icon: '#', label: 'Explorar', to: '/explorar' },
   { icon: '♡', label: 'Notificaciones', to: '/notificaciones' },
   { icon: '✉', label: 'Mensajes', to: '/chat' },
+  { icon: '○', label: 'Perfil', to: '/perfil' },
   { icon: '▣', label: 'Guardados', to: '/guardados' },
   { icon: '◎', label: 'Comunidades', to: '/comunidades' },
-  { icon: '○', label: 'Perfil', to: '/perfil' },
 ]
 
 function AppSidebar() {
   const { logout, user } = useAuth()
+  const location = useLocation()
+  const activeLinkRef = useRef(null)
+
+  useEffect(() => {
+    activeLinkRef.current?.scrollIntoView?.({
+      block: 'nearest',
+      inline: 'center',
+    })
+  }, [location.pathname])
 
   return (
     <aside className="messages-sidebar" aria-label="Barra lateral principal">
@@ -39,6 +49,7 @@ function AppSidebar() {
               )}
               end={item.to === '/feed'}
               key={item.label}
+              ref={location.pathname === item.to ? activeLinkRef : null}
               to={item.to}
             >
               {content}

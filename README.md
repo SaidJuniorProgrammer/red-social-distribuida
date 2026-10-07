@@ -45,7 +45,7 @@ flowchart TD
    npm install
    npm run dev
    ```
-4. *(Añadir el comando para levantar Quarkus cuando esté configurado)*.
+4. Levantar Quarkus `mvn quarkus:dev`
 
 ### Validación del Frontend
 

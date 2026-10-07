@@ -5,6 +5,8 @@ export async function createPost({ image, text }) {
   formData.append('texto', text.trim())
   if (image) formData.append('archivo', image)
 
-  const { data } = await api.post('/posts', formData)
+  const { data } = await api.post('/posts', formData, {
+    headers: { 'Content-Type': undefined },
+  })
   return data
 }

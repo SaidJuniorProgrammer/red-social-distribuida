@@ -129,7 +129,7 @@ function CreatePostPage() {
         {previewUrl && (
           <div className="post-composer__preview">
             <img src={previewUrl} alt="Vista previa de la imagen seleccionada" />
-            <button type="button" aria-label="Quitar imagen" onClick={removeImage}>
+            <button type="button" aria-label="Quitar imagen" disabled={isSubmitting} onClick={removeImage}>
               ×
             </button>
           </div>

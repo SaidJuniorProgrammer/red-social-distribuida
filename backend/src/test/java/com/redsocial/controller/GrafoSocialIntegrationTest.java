@@ -1,8 +1,8 @@
 package com.redsocial.controller;
 
 import com.redsocial.repository.GrafoSocialRepository;
-import io.smallrye.jwt.build.Jwt;
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.jwt.build.Jwt;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,12 +22,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
 
+/**
+ * Pruebas de integración para los endpoints del grafo social, feed y perfil de usuario.
+ */
 @QuarkusTest
 class GrafoSocialIntegrationTest {
 
     @Inject
     GrafoSocialRepository grafoSocialRepository;
 
+    /**
+     * Configura los mocks en memoria del driver de Neo4j antes de cada prueba.
+     */
     @BeforeEach
     void configurarMocksEnMemoria() {
         Record feedRecord = (Record) Proxy.newProxyInstance(
@@ -45,6 +51,7 @@ class GrafoSocialIntegrationTest {
                             case "reacciones" -> Values.value(5L);
                             case "recomendado" -> Values.value("said");
                             case "conexiones_en_comun" -> Values.value(2L);
+                            case "username" -> Values.value("carlos");
                             default -> Values.value("ok");
                         };
                     }
@@ -106,6 +113,9 @@ class GrafoSocialIntegrationTest {
         grafoSocialRepository.setDriver(driverProxy);
     }
 
+    /**
+     * Verifica las respuestas exitosas y el manejo de errores de los endpoints del grafo social y perfil.
+     */
     @Test
     void testEndpointsGrafoSocial() {
         // 1. Obtener Feed exitoso (200)
@@ -188,8 +198,53 @@ class GrafoSocialIntegrationTest {
                 .get("/api/usuarios/error_db/sugerencias")
         .then()
                 .statusCode(500);
+
+        // 12. Obtener publicaciones propias del perfil (200 y 500)
+        given()
+        .when()
+                .get("/api/usuarios/u1/posts")
+        .then()
+                .statusCode(200)
+                .body(containsString("Mi primer post en la red social"));
+
+        given()
+        .when()
+                .get("/api/usuarios/error_db/posts")
+        .then()
+                .statusCode(500);
+
+        // 13. Obtener lista de seguidores del usuario (200 y 500)
+        given()
+        .when()
+                .get("/api/usuarios/u1/seguidores")
+        .then()
+                .statusCode(200)
+                .body(containsString("carlos"));
+
+        given()
+        .when()
+                .get("/api/usuarios/error_db/seguidores")
+        .then()
+                .statusCode(500);
+
+        // 14. Obtener lista de seguidos por el usuario (200 y 500)
+        given()
+        .when()
+                .get("/api/usuarios/u1/seguidos")
+        .then()
+                .statusCode(200)
+                .body(containsString("carlos"));
+
+        given()
+        .when()
+                .get("/api/usuarios/error_db/seguidos")
+        .then()
+                .statusCode(500);
     }
 
+    /**
+     * Verifica que el buscador de usuarios registrados requiera una sesión autenticada con JWT.
+     */
     @Test
     void exigeUnaSesionParaBuscarUsuariosRegistrados() {
         given()
