@@ -2,7 +2,6 @@ package com.redsocial.controller;
 
 import com.redsocial.dto.PushSubscriptionRequest;
 import com.redsocial.repository.PostRepository;
-import com.redsocial.repository.PushSubscriptionRepository;
 import com.redsocial.service.PushEndpointValidator;
 import com.redsocial.service.S3StorageService;
 import com.redsocial.service.WebPushService;
@@ -76,27 +75,16 @@ class WebPushIntegrationTest {
                 return 201;
             }
         }, WebPushGateway.class);
+        
         QuarkusMock.installMockForType(new PushEndpointValidator() {
             @Override
             public boolean esSeguro(String endpoint) {
                 return endpoint != null && endpoint.startsWith("https://");
             }
         }, PushEndpointValidator.class);
-        QuarkusMock.installMockForType(new PushSubscriptionRepository() {
-            @Override
-            public void guardar(PushSubscriptionRequest subscription) {
-            }
+        
+        // ELIMINADO EL MOCK VIEJO DE PushSubscriptionRepository QUE CAUSABA EL CONFLICTO
 
-            @Override
-            public boolean eliminar(String usuario, String endpoint) {
-                return false;
-            }
-
-            @Override
-            public List<PushSubscriptionRequest> obtenerTodas() {
-                return List.of();
-            }
-        }, PushSubscriptionRepository.class);
         S3Client s3Proxy = (S3Client) Proxy.newProxyInstance(
                 S3Client.class.getClassLoader(),
                 new Class[]{S3Client.class},
