@@ -1,24 +1,26 @@
 package com.redsocial.repository;
 
 import com.redsocial.dto.NotificacionResponse;
-import io.quarkus.test.Mock;
+import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Alternative;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Simulador global del repositorio para evitar que los tests de integración 
- * se queden colgados intentando conectar a un Neo4j inexistente en GitHub Actions.
+ * Simulador global del repositorio con prioridad alta (@Alternative).
+ * Garantiza que los tests en GitHub Actions no intenten conectar a un Neo4j inexistente.
  */
-@Mock
+@Alternative
+@Priority(1)
 @ApplicationScoped
 public class MockNotificacionRepository extends NotificacionRepository {
 
     @Override
     public void guardarNotificacion(String idNotificacion, String tipo, String actor,
                                     String destinatario, String mensaje, String referencia, String fecha) {
-        // No hacemos nada para no bloquear los tests en el servidor de CI
+        // Interceptamos la llamada y no hacemos nada para evitar el SocketTimeout
     }
 
     @Override
