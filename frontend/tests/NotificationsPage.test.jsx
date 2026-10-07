@@ -97,3 +97,22 @@ it('marca todas como leídas desde la cabecera y oculta el botón', async () => 
     screen.queryByRole('button', { name: 'Marcar todas como leídas' }),
   ).not.toBeInTheDocument())
 })
+
+it('conserva una notificación abierta aunque falle marcar todas como leídas', async () => {
+  vi.stubGlobal('Notification', { permission: 'denied' })
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { notificaciones: [
+    { idNotificacion: 'a', tipo: 'LIKE', actor: 'ana', mensaje: 'Uno', referencia: '/feed', fecha: '2026-10-02T10:00:00Z', leida: false },
+    { idNotificacion: 'b', tipo: 'POST', actor: 'said', mensaje: 'Dos', referencia: '/feed', fecha: '2026-10-01T10:00:00Z', leida: false },
+  ] } })
+  vi.spyOn(api, 'put').mockImplementation((url) => (
+    url.endsWith('/leer-todas') ? Promise.reject(new Error('fallo')) : Promise.resolve({ data: {} })
+  ))
+  renderNotifications()
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Marcar todas como leídas' }))
+  fireEvent.click(screen.getAllByRole('link', { name: 'Abrir notificación' })[0])
+
+  await waitFor(() => expect(api.put).toHaveBeenCalledWith('/notificaciones/a/leer'))
+  await waitFor(() => expect(screen.getByText('Dos').closest('li')).toHaveClass('notification-inbox__unread'))
+  expect(screen.getByText('Uno').closest('li')).not.toHaveClass('notification-inbox__unread')
+})

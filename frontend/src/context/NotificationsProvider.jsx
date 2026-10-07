@@ -17,6 +17,7 @@ function NotificationsProvider({ children }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const readOverrides = useRef(new Set())
+  const pendingBulkKeys = useRef(new Set())
 
   const refresh = useCallback(async ({ signal } = {}) => {
     if (!user?.username) return
@@ -56,10 +57,13 @@ function NotificationsProvider({ children }) {
   }, [refresh])
 
   const markAsRead = useCallback(async (notification) => {
-    if (isNotificationRead(notification)) return
-
     const notificationKey = getNotificationKey(notification)
     const notificationId = getNotificationId(notification)
+    // Si un "marcar todas" en vuelo ya la marcó de forma optimista, la reclamamos como lectura
+    // individual (la sacamos del bulk) para que un rollback de "marcar todas" no la revierta.
+    const coveredByPendingBulk = pendingBulkKeys.current.delete(notificationKey)
+    if (isNotificationRead(notification) && !coveredByPendingBulk) return
+
     readOverrides.current.add(notificationKey)
     setNotifications((current) => current.map((item) => (
       getNotificationKey(item) === notificationKey
@@ -89,7 +93,10 @@ function NotificationsProvider({ children }) {
     if (!unreadKeys.length) return
 
     const unreadKeySet = new Set(unreadKeys)
-    unreadKeys.forEach((key) => readOverrides.current.add(key))
+    unreadKeys.forEach((key) => {
+      readOverrides.current.add(key)
+      pendingBulkKeys.current.add(key)
+    })
     setNotifications((current) => current.map((item) => (
       unreadKeySet.has(getNotificationKey(item)) ? { ...item, leida: true } : item
     )))
@@ -97,10 +104,14 @@ function NotificationsProvider({ children }) {
     try {
       await markAllNotificationsAsRead()
       setError('')
+      unreadKeys.forEach((key) => pendingBulkKeys.current.delete(key))
     } catch {
-      unreadKeys.forEach((key) => readOverrides.current.delete(key))
+      // Revertir solo las que siguen a cargo del bulk; las abiertas de forma individual se conservan.
+      const keysToRevert = unreadKeys.filter((key) => pendingBulkKeys.current.delete(key))
+      const revertSet = new Set(keysToRevert)
+      keysToRevert.forEach((key) => readOverrides.current.delete(key))
       setNotifications((current) => current.map((item) => (
-        unreadKeySet.has(getNotificationKey(item)) ? { ...item, leida: false } : item
+        revertSet.has(getNotificationKey(item)) ? { ...item, leida: false } : item
       )))
       setError('No pudimos marcar las notificaciones como leídas.')
     }
