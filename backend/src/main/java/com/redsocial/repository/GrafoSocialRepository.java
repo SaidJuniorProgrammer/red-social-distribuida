@@ -71,7 +71,7 @@ public class GrafoSocialRepository {
         }
     }
 
-    /**
+/**
      * Obtiene el historial de publicaciones propias de un usuario para su perfil.
      *
      * @param miId identificador o username del usuario
@@ -83,12 +83,13 @@ public class GrafoSocialRepository {
             WHERE yo.id_usuario = $miId OR yo.username = $miId OR yo.id = $miId
             WITH DISTINCT yo, p
             OPTIONAL MATCH (p)<-[r:REACCIONA]-()
+            WITH yo, p, count(r) AS reacciones
             RETURN p.id_post AS id_post,
                    yo.username AS autor,
                    p.texto AS texto,
                    p.media_url AS media_url,
                    toString(p.fecha_publicacion) AS fecha_publicacion,
-                   count(r) AS reacciones
+                   reacciones
             ORDER BY p.fecha_publicacion DESC
             """;
 
