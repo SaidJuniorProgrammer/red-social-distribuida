@@ -124,3 +124,22 @@ RETURN u.username AS usuario, p.id_post AS post, r.tipo_reaccion AS reaccion;
 MATCH (u:Usuario {id_usuario: $miId})-[r:REACCIONA {tipo_reaccion:'LIKE'}]->(p:Post {id_post: $idPost})
 DELETE r
 RETURN u.username AS usuario, p.id_post AS post;
+
+// ============================================================
+// PERFIL DE USUARIO (issue #31)
+// ============================================================
+
+// ------------------------------------------------------------
+// 12) HISTORIAL DE PUBLICACIONES de un usuario
+//     Todas las publicaciones propias del usuario (su muro), de la
+//     mas reciente a la mas antigua, con su conteo de reacciones.
+//     Se agrupa por p.id_post (unico) para no mezclar publicaciones.
+// ------------------------------------------------------------
+MATCH (u:Usuario {id_usuario: $miId})-[:PUBLICA]->(p:Post)
+OPTIONAL MATCH (p)<-[r:REACCIONA]-()
+RETURN p.id_post            AS id_post,
+       p.texto              AS texto,
+       p.media_url          AS media_url,
+       p.fecha_publicacion  AS fecha_publicacion,
+       count(r)             AS reacciones
+ORDER BY p.fecha_publicacion DESC;
