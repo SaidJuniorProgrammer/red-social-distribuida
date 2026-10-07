@@ -88,6 +88,20 @@ Un mensaje individual dentro de una conversación (historial del chat).
 | `fecha_envio` | DateTime | Momento de envío.                      |
 | `leido`       | Boolean  | Estado de lectura (opcional).          |
 
+### `:Notificacion` *(issue #44 — notificaciones persistentes)*
+Una notificación persistente dirigida a un usuario (seguimiento, mensaje, publicación o like).
+
+| Propiedad          | Tipo     | Notas                                                        |
+|--------------------|----------|--------------------------------------------------------------|
+| `id_notificacion`  | String   | UUID. Único.                                                 |
+| `tipo`             | String   | `SEGUIMIENTO` \| `MENSAJE` \| `PUBLICACION` \| `LIKE`.        |
+| `mensaje`          | String   | Texto de la notificación.                                    |
+| `referencia`       | String   | Id del destino (post, conversación o perfil).                |
+| `url_interna`      | String   | Ruta interna a la que navega al pulsarla.                    |
+| `id_origen`        | String   | Id del usuario que originó el evento (clave anti-duplicado). |
+| `fecha`            | DateTime | Momento de la notificación.                                  |
+| `leido`            | Boolean  | Estado leído/no leído.                                       |
+
 ---
 
 ## 3. Relaciones
@@ -101,6 +115,8 @@ Un mensaje individual dentro de una conversación (historial del chat).
 | `[:ENVIA]`       | `(:Usuario)-->(:Mensaje)`          | —                    | Quién escribió el mensaje.                     |
 | `[:EN]`          | `(:Mensaje)-->(:Conversacion)`     | —                    | Relación del modelo de conversación usado en las semillas. |
 | `[:DIRIGIDO_A]`  | `(:Mensaje)-->(:Usuario)`          | —                    | Destinatario del mensaje en el chat WebSocket activo. |
+| `[:RECIBE]`      | `(:Usuario)-->(:Notificacion)`     | —                    | El usuario destinatario recibe la notificación (issue #44). |
+| `[:ORIGINADA_POR]` | `(:Notificacion)-->(:Usuario)`   | —                    | Usuario que originó el evento de la notificación (issue #44). |
 
 Notas de diseño:
 - `SIGUE` es **dirigida**: `(A)-[:SIGUE]->(B)` no implica `(B)-[:SIGUE]->(A)`.
