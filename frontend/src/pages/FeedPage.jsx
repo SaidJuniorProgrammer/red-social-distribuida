@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import PostCard from '../components/PostCard.jsx'
 import useAuth from '../hooks/useAuth.js'
-import { getFeed, likePost, unlikePost } from '../services/feed.js'
+import { getFeed } from '../services/feed.js'
+import usePostReactions from '../hooks/usePostReactions.js'
 
 function FeedPage() {
   const { user } = useAuth()
@@ -10,8 +11,7 @@ function FeedPage() {
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [likeError, setLikeError] = useState('')
-  const [pendingPostIds, setPendingPostIds] = useState([])
+  const { likeError, pendingPostIds, toggleLike } = usePostReactions(setPosts)
 
   useEffect(() => {
     if (!user?.username) return undefined
@@ -34,42 +34,6 @@ function FeedPage() {
 
     return () => abortController.abort()
   }, [user?.username])
-
-  const toggleLike = async (post) => {
-    if (pendingPostIds.includes(post.id)) return
-
-    const nextLiked = !post.liked
-    const reactionChange = nextLiked ? 1 : -1
-    setLikeError('')
-    setPendingPostIds((current) => [...current, post.id])
-    setPosts((current) => current.map((item) => (
-      item.id === post.id
-        ? {
-            ...item,
-            liked: nextLiked,
-            reactions: Math.max(0, item.reactions + reactionChange),
-          }
-        : item
-    )))
-
-    try {
-      const updateReaction = nextLiked ? likePost : unlikePost
-      await updateReaction(post.id, user.username)
-    } catch {
-      setPosts((current) => current.map((item) => (
-        item.id === post.id
-          ? {
-              ...item,
-              liked: post.liked,
-              reactions: post.reactions,
-            }
-          : item
-      )))
-      setLikeError('No pudimos actualizar tu reacción. Inténtalo de nuevo.')
-    } finally {
-      setPendingPostIds((current) => current.filter((id) => id !== post.id))
-    }
-  }
 
   return (
     <main className="feed-placeholder">

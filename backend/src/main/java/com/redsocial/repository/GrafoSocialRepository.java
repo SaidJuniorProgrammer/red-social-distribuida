@@ -66,7 +66,10 @@ public class GrafoSocialRepository {
                    p.texto AS texto,
                    p.media_url AS media_url,
                    toString(p.fecha_publicacion) AS fecha_publicacion,
-                   reacciones
+                   reacciones,
+                   p.media_tipo AS media_tipo,
+                   EXISTS { MATCH (lector:Usuario)-[:REACCIONA {tipo_reaccion: 'LIKE'}]->(p)
+                            WHERE lector.username = $miId OR lector.id_usuario = $miId OR lector.id = $miId } AS liked
             ORDER BY p.fecha_publicacion DESC
             LIMIT 20
             """;
@@ -76,13 +79,14 @@ public class GrafoSocialRepository {
         }
     }
 
-/**
+    /**
      * Obtiene el historial de publicaciones propias de un usuario para su perfil.
      *
      * @param miId identificador o username del usuario
+     * @param lector cuenta autenticada que consulta el perfil; vacío si no hay sesión
      * @return lista de publicaciones del usuario ordenadas por fecha descendente
      */
-    public List<FeedItemResponse> obtenerPostsDeUsuario(String miId) {
+    public List<FeedItemResponse> obtenerPostsDeUsuario(String miId, String lector) {
         String query = """
             MATCH (yo:Usuario)-[:PUBLICA]->(p:Post)
             WHERE yo.id_usuario = $miId OR yo.username = $miId OR yo.id = $miId
@@ -94,12 +98,14 @@ public class GrafoSocialRepository {
                    p.texto AS texto,
                    p.media_url AS media_url,
                    toString(p.fecha_publicacion) AS fecha_publicacion,
-                   reacciones
+                   reacciones,
+                   p.media_tipo AS media_tipo,
+                   EXISTS { MATCH (:Usuario {username: $lector})-[:REACCIONA {tipo_reaccion: 'LIKE'}]->(p) } AS liked
             ORDER BY p.fecha_publicacion DESC
             """;
 
         try (var session = driver.session()) {
-            return session.executeRead(tx -> mapearPosts(tx.run(query, Values.parameters(PARAM_MI_ID, miId))));
+            return session.executeRead(tx -> mapearPosts(tx.run(query, Values.parameters(PARAM_MI_ID, miId, "lector", lector))));
         }
     }
 
@@ -301,7 +307,9 @@ public class GrafoSocialRepository {
                     row.get("texto").asString(null),
                     row.get("media_url").asString(null),
                     row.get("fecha_publicacion").asString(null),
-                    row.get("reacciones").asLong(0L)
+                    row.get("reacciones").asLong(0L),
+                    row.get("liked").asBoolean(false),
+                    row.get("media_tipo").asString(null)
             ));
         }
         return posts;

@@ -6,6 +6,8 @@ public record FeedItemResponse(
         String texto,
         String media_url,
         String fecha_publicacion,
-        long reacciones
+        long reacciones,
+        boolean liked,
+        String media_tipo
 ) {
 }

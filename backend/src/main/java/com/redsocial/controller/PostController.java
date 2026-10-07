@@ -174,6 +174,7 @@ public class PostController {
      * @return respuesta HTTP con el resultado de la operación
      */
     @POST
+    @Authenticated
     @Path("/{id_post}/like/{mi_id}")
     public Response darLikePost(
             @PathParam("id_post") String idPost,
@@ -220,6 +221,7 @@ public class PostController {
      * @return respuesta HTTP con el resultado de la eliminación
      */
     @DELETE
+    @Authenticated
     @Path("/{id_post}/like/{mi_id}")
     public Response quitarLikePost(
             @PathParam("id_post") String idPost,

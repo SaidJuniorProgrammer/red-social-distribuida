@@ -1,8 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { searchRegisteredUsers } from '../services/users.js'
-import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
+import useFollowActions, { updateConnections } from '../hooks/useFollowActions.js'
+import { getFollowing, getSuggestions } from '../services/profile.js'
+import useAuth from '../hooks/useAuth.js'
+import UserList from '../components/UserList.jsx'
 
 function ExplorePage() {
+  const { user } = useAuth()
+  const [following, setFollowing] = useState([])
+  const [suggestions, setSuggestions] = useState([])
+  const [connectionsReady, setConnectionsReady] = useState(false)
+  const [connectionError, setConnectionError] = useState('')
+  const [suggestionError, setSuggestionError] = useState('')
+  const [revision, setRevision] = useState(0)
+  const { toggleFollow, pendingUsers, followError } = useFollowActions(following, (username, isFollowing) => {
+    setFollowing((current) => updateConnections(current, username, isFollowing))
+  })
   const [query, setQuery] = useState('')
   const [users, setUsers] = useState([])
   const [status, setStatus] = useState('')
@@ -10,6 +23,28 @@ function ExplorePage() {
   const searchRequestRef = useRef(null)
 
   useEffect(() => () => searchRequestRef.current?.abort(), [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    getFollowing(user.username, { signal: controller.signal }).then((connections) => {
+      if (controller.signal.aborted) return
+      setFollowing(connections)
+      setConnectionsReady(true)
+      setConnectionError('')
+    }).catch(() => {
+      if (!controller.signal.aborted) setConnectionError('No pudimos cargar tus conexiones.')
+    })
+    getSuggestions(user.username, { signal: controller.signal }).then((recommended) => {
+      if (controller.signal.aborted) return
+      setSuggestions(recommended)
+      setSuggestionError('')
+    }).catch(() => {
+      if (!controller.signal.aborted) setSuggestionError('No pudimos cargar las sugerencias.')
+    })
+    return () => controller.abort()
+  }, [user.username, revision])
+
+  const connectionProps = { currentUser: user.username, following, pendingUsers, onToggle: toggleFollow, disabled: !connectionsReady }
 
   const search = async (event) => {
     event.preventDefault()
@@ -83,19 +118,21 @@ function ExplorePage() {
         </form>
 
         {status && <p className="explore-status" role="status">{status}</p>}
+        {followError && <p className="form-message form-message--error" role="alert">{followError}</p>}
+        {connectionError && <p className="form-message form-message--error" role="alert">{connectionError}</p>}
+        {(connectionError || suggestionError) && <button type="button" className="secondary-button" onClick={() => setRevision((value) => value + 1)}>Reintentar conexiones</button>}
         {users.length > 0 && (
-          <ul className="explore-results" aria-label="Usuarios encontrados">
-            {users.map(({ username }) => (
-              <li key={username}>
-                <span className="messages-avatar" aria-hidden="true">{getInitial(username)}</span>
-                <span>
-                  <strong>{formatDisplayName(username)}</strong>
-                  <small>@{username}</small>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <UserList users={users.map(({ username }) => username)} label="Usuarios encontrados" {...connectionProps} />
         )}
+      </section>
+      <section className="explore-card" aria-label="Personas sugeridas">
+        <h2>Personas que podrías conocer</h2>
+        <p>Recomendaciones según tus conexiones en común.</p>
+        {suggestionError && <p role="alert" className="form-message form-message--error">{suggestionError}</p>}
+        <UserList users={suggestions.map(({ recomendado }) => recomendado)} label="Personas sugeridas"
+          details={Object.fromEntries(suggestions.map((item) => [item.recomendado, `${item.conexiones_en_comun} conexiones en común`]))}
+          emptyMessage={connectionsReady ? 'No hay sugerencias por ahora.' : 'Las sugerencias aparecerán cuando carguen tus conexiones.'}
+          {...connectionProps} />
       </section>
     </main>
   )

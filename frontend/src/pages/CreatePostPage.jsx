@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../hooks/useAuth.js'
+import PostMedia from '../components/PostMedia.jsx'
 import { createPost } from '../services/posts.js'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
 
@@ -31,11 +32,11 @@ function CreatePostPage() {
       return
     }
 
-    if (!selectedImage.type.startsWith('image/')) {
+    if (!selectedImage.type.startsWith('image/') && !selectedImage.type.startsWith('video/')) {
       target.value = ''
       setImage(null)
       setPreviewUrl('')
-      setError('Selecciona un archivo de imagen válido.')
+      setError('Selecciona una imagen o un video válido.')
       return
     }
 
@@ -43,7 +44,7 @@ function CreatePostPage() {
       target.value = ''
       setImage(null)
       setPreviewUrl('')
-      setError('La imagen no puede superar los 10 MB.')
+      setError('El archivo no puede superar los 10 MB.')
       return
     }
 
@@ -128,8 +129,9 @@ function CreatePostPage() {
 
         {previewUrl && (
           <div className="post-composer__preview">
-            <img src={previewUrl} alt="Vista previa de la imagen seleccionada" />
-            <button type="button" aria-label="Quitar imagen" disabled={isSubmitting} onClick={removeImage}>
+            <PostMedia src={previewUrl} type={image?.type.startsWith('video/') ? 'video' : 'image'}
+              label="Vista previa del archivo seleccionado" />
+            <button type="button" aria-label="Quitar archivo" disabled={isSubmitting} onClick={removeImage}>
               ×
             </button>
           </div>
@@ -140,15 +142,15 @@ function CreatePostPage() {
         <footer className="post-composer__actions">
           <label className="post-composer__image-button" htmlFor="post-image">
             <span aria-hidden="true">▧</span>
-            {image ? 'Cambiar imagen' : 'Agregar imagen'}
+            {image ? 'Cambiar archivo' : 'Agregar imagen o video'}
           </label>
           <input
             className="sr-only"
             id="post-image"
             ref={imageInputRef}
             type="file"
-            accept="image/*"
-            aria-label="Seleccionar imagen para la publicación"
+            accept="image/*,video/*"
+            aria-label="Seleccionar imagen o video para la publicación"
             disabled={isSubmitting}
             onChange={selectImage}
           />

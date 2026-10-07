@@ -49,14 +49,14 @@ it('carga el feed y permite dar y quitar Me gusta', async () => {
   }))
 
   fireEvent.click(screen.getByRole('button', { name: 'Me gusta' }))
-  expect(screen.getByLabelText('3 reacciones')).toBeInTheDocument()
+  expect(await screen.findByLabelText('3 reacciones')).toBeInTheDocument()
   await waitFor(() => expect(createLike).toHaveBeenCalledWith('/posts/post%2F1/like/oscar'))
 
   const unlikeButton = await screen.findByRole('button', { name: 'Quitar Me gusta' })
   await waitFor(() => expect(unlikeButton).toBeEnabled())
   fireEvent.click(unlikeButton)
 
-  expect(screen.getByLabelText('2 reacciones')).toBeInTheDocument()
+  expect(await screen.findByLabelText('2 reacciones')).toBeInTheDocument()
   await waitFor(() => expect(removeLike).toHaveBeenCalledWith('/posts/post%2F1/like/oscar'))
 })
 

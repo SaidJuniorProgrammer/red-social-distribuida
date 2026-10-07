@@ -269,13 +269,23 @@ a { color: inherit; }
 .post-composer textarea:disabled { cursor: not-allowed; background: #f4f1f7; }
 .post-composer__counter { margin-top: -.75rem; color: #8a8194; font-size: .68rem; text-align: right; }
 .post-composer__preview { position: relative; overflow: hidden; border: 1px solid #e4dcec; border-radius: .85rem; background: #eee8f4; }
-.post-composer__preview img { display: block; width: 100%; max-height: 28rem; object-fit: contain; }
+.post-composer__preview img, .post-composer__preview video { display: block; width: 100%; max-height: 28rem; object-fit: contain; }
 .post-composer__preview button { position: absolute; top: .65rem; right: .65rem; display: grid; width: 2rem; height: 2rem; place-items: center; border: 0; border-radius: 50%; color: #fff; background: rgb(28 21 37 / 78%); cursor: pointer; font-size: 1.15rem; }
 .post-composer__preview button:hover { background: #5d2aa8; }
 .post-composer__actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: .25rem; }
 .post-composer__image-button { min-height: 2.7rem; display: inline-flex; align-items: center; gap: .5rem; padding: .65rem .85rem; border: 1px solid #d9cdea; border-radius: .6rem; color: #5d2aa8; background: #fff; cursor: pointer; font-size: .78rem; font-weight: 700; transition: color 160ms ease, background 160ms ease, transform 160ms ease; }
 .post-composer__image-button:hover { color: #fff; background: #7434cf; transform: translateY(-1px); }
 .post-composer__actions .primary-button { min-width: 8rem; padding-inline: 1rem; }
+.profile-user-card__identity { text-decoration: none; }
+.profile-user-card__identity:hover { color: #7434cf; text-decoration: underline; }
+.post-card__header a { text-decoration: none; }
+.post-card__header a:hover { text-decoration: underline; }
+.notification-inbox { margin-block: 1.5rem; padding: 1.25rem; background: #fff; border: 1px solid #e2d9ee; border-radius: 1rem; }
+.notification-inbox ul { display: grid; gap: 1rem; padding: 0; list-style: none; }
+.notification-inbox li { display: grid; gap: .5rem; padding-bottom: 1rem; border-bottom: 1px solid #e2d9ee; overflow-wrap: anywhere; }
+.notification-inbox li p { margin: 0; }
+.notification-inbox time, .notification-inbox__note { color: #746b80; font-size: .8rem; }
+.notification-inbox a { color: #7434cf; }
 .profile-page { width: min(100%, 44rem); margin: 0 auto; padding: 2rem; }
 .profile-hero { padding: 1.5rem; border: 1px solid #e2d9ee; border-radius: 1rem; background: #fff; box-shadow: 0 .8rem 2.4rem rgb(65 39 100 / 6%); }
 .profile-hero__summary { display: flex; align-items: center; gap: 1rem; padding-bottom: 1.25rem; }

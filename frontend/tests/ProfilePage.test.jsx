@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import AuthContext from '../src/context/authContext.js'
 import ProfilePage from '../src/pages/ProfilePage.jsx'
 import api from '../src/services/api.js'
@@ -8,9 +9,9 @@ const user = { username: 'oscar' }
 
 function renderProfile() {
   return render(
-    <AuthContext.Provider value={{ user }}>
+    <MemoryRouter><AuthContext.Provider value={{ user }}>
       <ProfilePage />
-    </AuthContext.Provider>,
+    </AuthContext.Provider></MemoryRouter>,
   )
 }
 
@@ -40,7 +41,7 @@ it('muestra publicaciones, seguidores, seguidos y sus contadores', async () => {
   renderProfile()
 
   expect(await screen.findByText('Mi primera publicación')).toBeInTheDocument()
-  expect(screen.getByText('4 reacciones')).toBeInTheDocument()
+  expect(screen.getByLabelText('4 reacciones')).toBeInTheDocument()
   expect(screen.getByRole('img', { name: 'Contenido publicado por @oscar' })).toHaveAttribute(
     'src',
     'https://cdn.example/p1.png',
@@ -61,7 +62,7 @@ it('muestra publicaciones, seguidores, seguidos y sus contadores', async () => {
 
   fireEvent.click(screen.getByRole('tab', { name: /Seguidos/ }))
   expect(screen.getByText('@ana')).toBeInTheDocument()
-  expect(within(screen.getByRole('tabpanel')).queryByRole('button')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Dejar de seguir a @ana' })).toBeEnabled()
   expect(request).toHaveBeenNthCalledWith(
     1,
     '/usuarios/oscar/seguidores',
@@ -94,7 +95,7 @@ it('acepta colecciones directas y descarta usuarios sin nombre', async () => {
   renderProfile()
 
   expect(await screen.findByText('Sin contador válido')).toBeInTheDocument()
-  expect(screen.getByText('0 reacciones')).toBeInTheDocument()
+  expect(screen.getByLabelText('0 reacciones')).toBeInTheDocument()
 
   fireEvent.click(screen.getByRole('tab', { name: /Seguidores/ }))
   expect(screen.getByLabelText('Lista de seguidores')).toHaveTextContent('@said')
@@ -125,7 +126,7 @@ it('informa cuando no se puede cargar el perfil', async () => {
   )
 })
 
-it('deshabilita cuentas ya seguidas y actualiza Seguidos después de seguir a un seguidor', async () => {
+it('permite dejar de seguir cuentas y actualiza Seguidos después de seguir a un seguidor', async () => {
   mockProfileRequests({ followers: ['said', 'estalin'], following: ['estalin'] })
   let resolveFollow
   const request = vi.spyOn(api, 'post').mockImplementation(() => new Promise((resolve) => {
@@ -135,23 +136,23 @@ it('deshabilita cuentas ya seguidas y actualiza Seguidos después de seguir a un
   await screen.findByText('Aún no has publicado contenido.')
   fireEvent.click(screen.getByRole('tab', { name: 'Seguidores' }))
 
-  expect(screen.getByRole('button', { name: 'Ya sigues a @estalin' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Dejar de seguir a @estalin' })).toBeEnabled()
   const button = screen.getByRole('button', { name: 'Seguir a @said' })
   fireEvent.click(button)
   fireEvent.click(button)
   expect(button).toBeDisabled()
-  expect(button).toHaveTextContent('Siguiendo…')
+  expect(button).toHaveTextContent('Guardando…')
   expect(request).toHaveBeenCalledTimes(1)
   expect(request).toHaveBeenCalledWith('/usuarios/oscar/seguir/said')
 
   await act(async () => resolveFollow({ data: { status: 'success' } }))
-  expect(screen.getByRole('button', { name: 'Ya sigues a @said' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Ya sigues a @said' })).toHaveTextContent('Seguir')
+  expect(screen.getByRole('button', { name: 'Dejar de seguir a @said' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Dejar de seguir a @said' })).toHaveTextContent('Dejar de seguir')
   expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual(['0', '2', '2'])
   fireEvent.click(screen.getByRole('tab', { name: 'Seguidos' }))
   expect(screen.getByText('@said')).toBeInTheDocument()
   expect(screen.getByText('@estalin')).toBeInTheDocument()
-  expect(within(screen.getByRole('tabpanel')).queryByRole('button')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Dejar de seguir a @said' })).toBeEnabled()
 })
 
 it('permite reintentar un seguimiento fallido sin alterar el contador', async () => {
@@ -167,7 +168,7 @@ it('permite reintentar un seguimiento fallido sin alterar el contador', async ()
   expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos seguir a @said.')
   expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual(['0', '1', '0'])
   fireEvent.click(screen.getByRole('button', { name: 'Seguir a @said' }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Ya sigues a @said' })).toBeDisabled())
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Dejar de seguir a @said' })).toBeEnabled())
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   expect(request).toHaveBeenCalledTimes(2)
 })
@@ -181,4 +182,42 @@ it('cancela las solicitudes pendientes al desmontar la vista', () => {
 
   expect(signals).toHaveLength(3)
   signals.forEach((signal) => expect(signal.aborted).toBe(true))
+})
+
+it('deja de seguir desde la lista de seguidos y actualiza el contador', async () => {
+  mockProfileRequests({ following: ['ana'] })
+  const remove = vi.spyOn(api, 'delete').mockResolvedValue({ data: {} })
+  renderProfile()
+  await screen.findByText('Aún no has publicado contenido.')
+  fireEvent.click(screen.getByRole('tab', { name: 'Seguidos' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Dejar de seguir a @ana' }))
+  await screen.findByText('Todavía no sigues a ninguna cuenta.')
+  expect(remove).toHaveBeenCalledWith('/usuarios/oscar/seguir/ana')
+  expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual(['0', '0', '0'])
+})
+
+it('visita otro perfil, cambia su seguimiento y permite reaccionar a sus publicaciones', async () => {
+  mockProfileRequests({ followers: ['oscar'], posts: [{ id_post: 'p1', autor: 'ana', texto: 'Hola desde Ana', liked: true, reacciones: 1 }] })
+    .mockResolvedValueOnce({ data: { seguidos: ['ana'] } })
+  const remove = vi.spyOn(api, 'delete').mockResolvedValue({ data: {} })
+  const follow = vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
+  render(<MemoryRouter initialEntries={['/perfil/ana']}>
+    <AuthContext.Provider value={{ user }}><Routes>
+      <Route path="/perfil/:username" element={<ProfilePage />} />
+    </Routes></AuthContext.Provider>
+  </MemoryRouter>)
+  await screen.findByText('Hola desde Ana')
+  expect(api.get).toHaveBeenCalledWith('/usuarios/ana/posts', expect.anything())
+  fireEvent.click(screen.getByRole('button', { name: 'Dejar de seguir a @ana' }))
+  await screen.findByRole('button', { name: 'Seguir a @ana' })
+  expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual(['1', '0', '0'])
+  fireEvent.click(screen.getByRole('button', { name: 'Seguir a @ana' }))
+  await screen.findByRole('button', { name: 'Dejar de seguir a @ana' })
+  expect(follow).toHaveBeenCalledWith('/usuarios/oscar/seguir/ana')
+  expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual(['1', '1', '0'])
+  fireEvent.click(screen.getByRole('button', { name: 'Quitar Me gusta' }))
+  await screen.findByLabelText('0 reacciones')
+  expect(remove).toHaveBeenCalledWith('/posts/p1/like/oscar')
+  fireEvent.click(screen.getByRole('tab', { name: 'Seguidores' }))
+  expect(within(screen.getByRole('tabpanel')).queryByRole('button')).not.toBeInTheDocument()
 })

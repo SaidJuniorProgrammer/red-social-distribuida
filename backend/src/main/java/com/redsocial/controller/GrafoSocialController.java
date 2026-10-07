@@ -109,7 +109,8 @@ public class GrafoSocialController {
     @Path("/usuarios/{mi_id}/posts")
     public Response obtenerPostsDeUsuario(@PathParam("mi_id") String miId) {
         try {
-            List<FeedItemResponse> posts = grafoSocialRepository.obtenerPostsDeUsuario(miId.trim());
+            String lector = securityIdentity.isAnonymous() ? "" : securityIdentity.getPrincipal().getName();
+            List<FeedItemResponse> posts = grafoSocialRepository.obtenerPostsDeUsuario(miId.trim(), lector);
             return Response.ok(Map.of("posts", posts)).build();
         } catch (Exception e) {
             LOG.error("Error al obtener las publicaciones del usuario", e);
@@ -167,12 +168,14 @@ public class GrafoSocialController {
      * @return respuesta HTTP con el estado de la relación
      */
     @POST
+    @Authenticated
     @Path("/usuarios/{mi_id}/seguir/{id_destino}")
     public Response seguirUsuario(
             @PathParam("mi_id") String miId,
             @PathParam("id_destino") String idDestino
     ) {
         try {
+            if (!esCuentaAutenticada(miId)) return seguimientoDenegado();
             if (miId.trim().equalsIgnoreCase(idDestino.trim())) {
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity(new ApiErrorResponse("INVALID_FOLLOW", "id_destino", "No puedes seguirte a ti mismo."))
@@ -203,12 +206,14 @@ public class GrafoSocialController {
      * @return respuesta HTTP con el estado de la eliminación
      */
     @DELETE
+    @Authenticated
     @Path("/usuarios/{mi_id}/seguir/{id_destino}")
     public Response dejarDeSeguirUsuario(
             @PathParam("mi_id") String miId,
             @PathParam("id_destino") String idDestino
     ) {
         try {
+            if (!esCuentaAutenticada(miId)) return seguimientoDenegado();
             boolean eliminado = grafoSocialRepository.dejarDeSeguirUsuario(miId.trim(), idDestino.trim());
             if (!eliminado) {
                 return Response.status(Response.Status.NOT_FOUND)
@@ -223,6 +228,16 @@ public class GrafoSocialController {
                     .entity(new ApiErrorResponse("UNFOLLOW_ERROR", null, "No se pudo eliminar la relación de seguimiento."))
                     .build();
         }
+    }
+
+    private boolean esCuentaAutenticada(String usuario) {
+        return usuario.trim().equals(securityIdentity.getPrincipal().getName());
+    }
+
+    private Response seguimientoDenegado() {
+        return Response.status(Response.Status.FORBIDDEN)
+                .entity(new ApiErrorResponse("FORBIDDEN", "mi_id", "No puedes modificar los seguimientos de otra cuenta."))
+                .build();
     }
 
     /**

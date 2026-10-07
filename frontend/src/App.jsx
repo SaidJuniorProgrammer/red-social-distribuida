@@ -48,6 +48,7 @@ function App() {
           )}
         />
         <Route path="/perfil" element={<ProfilePage />} />
+        <Route path="/perfil/:username" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

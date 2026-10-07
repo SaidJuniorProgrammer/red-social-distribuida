@@ -4,9 +4,8 @@ import com.redsocial.dto.PushNotificationPayload;
 import com.redsocial.repository.GrafoSocialRepository;
 import com.redsocial.service.WebPushService;
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.jwt.build.Jwt;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.SecurityContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.neo4j.driver.Driver;
@@ -19,13 +18,11 @@ import org.neo4j.driver.Value;
 import org.neo4j.driver.Values;
 
 import java.lang.reflect.Proxy;
-import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
@@ -40,12 +37,10 @@ class ReaccionesIntegrationTest {
     @Inject
     WebPushService webPushService;
 
-    @Inject
-    PostController postController;
+    private String token(String username) {
+        return Jwt.issuer("https://redsocial.com/issuer").upn(username).groups("Usuario").expiresIn(300).sign();
+    }
 
-    /**
-     * Configura el driver de Neo4j simulado en memoria antes de cada prueba.
-     */
     @BeforeEach
     void configurarMocks() {
         TransactionContext txProxy = (TransactionContext) Proxy.newProxyInstance(
@@ -132,7 +127,7 @@ class ReaccionesIntegrationTest {
     @Test
     void testDarYQuitarLikeConNotificacionPush() {
         // 1. Dar Like de otro usuario ('said' -> post de 'carlos'): registra LIKE y emite evento Push
-        given()
+        given().auth().oauth2(token("said"))
         .when()
                 .post("/api/posts/p1/like/said")
         .then()
@@ -143,51 +138,34 @@ class ReaccionesIntegrationTest {
         assertFalse(notificacionesCarlos.isEmpty());
 
         // 2. Casos de idempotencia: auto-like, like repetido y post sin autor (200 sin duplicar Push)
-        given().when().post("/api/posts/p1/like/carlos").then().statusCode(200);
-        given().when().post("/api/posts/p1/like/like_repetido").then().statusCode(200);
-        given().when().post("/api/posts/p1/like/sin_autor").then().statusCode(200);
-        given().when().post("/api/posts/p1/like/autor_vacio").then().statusCode(200);
+        given().auth().oauth2(token("carlos")).when().post("/api/posts/p1/like/carlos").then().statusCode(200);
+        given().auth().oauth2(token("like_repetido")).when().post("/api/posts/p1/like/like_repetido").then().statusCode(200);
+        given().auth().oauth2(token("sin_autor")).when().post("/api/posts/p1/like/sin_autor").then().statusCode(200);
+        given().auth().oauth2(token("autor_vacio")).when().post("/api/posts/p1/like/autor_vacio").then().statusCode(200);
 
         // 3. Validación de seguridad: usuario autenticado intentando reaccionar por otro (403 Forbidden)
-        SecurityContext ctxSaid = crearSecurityContext("said");
-        try (Response forbiddenLike = postController.darLikePost("p1", "otro_usuario", ctxSaid)) {
-            assertEquals(403, forbiddenLike.getStatus());
-        }
-        try (Response allowedLike = postController.darLikePost("p1", "said", ctxSaid)) {
-            assertEquals(200, allowedLike.getStatus());
-        }
-        try (Response forbiddenUnlike = postController.quitarLikePost("p1", "otro_usuario", ctxSaid)) {
-            assertEquals(403, forbiddenUnlike.getStatus());
-        }
+        given().auth().oauth2(token("said")).when().post("/api/posts/p1/like/otro_usuario").then().statusCode(403);
+        given().auth().oauth2(token("said")).when().delete("/api/posts/p1/like/otro_usuario").then().statusCode(403);
 
         // 4. Dar Like con usuario/post inexistente (404) y error de base de datos (500)
-        given().when().post("/api/posts/p1/like/no_existe").then().statusCode(404);
-        given().when().post("/api/posts/p1/like/error_db").then().statusCode(500);
+        given().auth().oauth2(token("no_existe")).when().post("/api/posts/p1/like/no_existe").then().statusCode(404);
+        given().auth().oauth2(token("error_db")).when().post("/api/posts/p1/like/error_db").then().statusCode(500);
 
         // 5. Quitar Like exitoso (200), inexistente (404) y error de base de datos (500)
-        given()
+        given().auth().oauth2(token("said"))
         .when()
                 .delete("/api/posts/p1/like/said")
         .then()
                 .statusCode(200)
                 .body(containsString("Reacción LIKE eliminada exitosamente"));
 
-        given().when().delete("/api/posts/p1/like/no_existe").then().statusCode(404);
-        given().when().delete("/api/posts/p1/like/error_db").then().statusCode(500);
+        given().auth().oauth2(token("no_existe")).when().delete("/api/posts/p1/like/no_existe").then().statusCode(404);
+        given().auth().oauth2(token("error_db")).when().delete("/api/posts/p1/like/error_db").then().statusCode(500);
     }
 
-    /**
-     * Crea un SecurityContext simulado con el nombre de usuario indicado.
-     *
-     * @param username nombre del principal autenticado
-     * @return instancia de SecurityContext
-     */
-    private SecurityContext crearSecurityContext(String username) {
-        Principal principal = () -> username;
-        return (SecurityContext) Proxy.newProxyInstance(
-                SecurityContext.class.getClassLoader(),
-                new Class[]{SecurityContext.class},
-                (proxy, method, args) -> "getUserPrincipal".equals(method.getName()) ? principal : null
-        );
+    @Test
+    void exigeAutenticacionParaReaccionar() {
+        given().when().post("/api/posts/p1/like/said").then().statusCode(401);
+        given().when().delete("/api/posts/p1/like/said").then().statusCode(401);
     }
 }

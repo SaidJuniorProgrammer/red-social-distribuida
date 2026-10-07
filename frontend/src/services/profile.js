@@ -1,4 +1,5 @@
 import api from './api.js'
+import { normalizePost } from './feed.js'
 
 function getCollection(data, key) {
   if (Array.isArray(data)) return data
@@ -10,17 +11,9 @@ function normalizeUsername(value) {
   return value?.username ?? value?.seguidor ?? value?.seguido ?? ''
 }
 
-function normalizePost(post, username) {
-  const reactions = Number(post.reacciones)
-
-  return {
-    id: post.id_post,
-    author: post.autor ?? username,
-    text: post.texto,
-    mediaUrl: post.media_url,
-    publishedAt: post.fecha_publicacion,
-    reactions: Number.isFinite(reactions) ? Math.max(0, reactions) : 0,
-  }
+export async function getFollowing(username, { signal } = {}) {
+  const { data } = await api.get(`/usuarios/${encodeURIComponent(username)}/seguidos`, { signal })
+  return getCollection(data, 'seguidos').map(normalizeUsername).filter(Boolean)
 }
 
 export async function getUserProfile(username, { signal } = {}) {
@@ -46,4 +39,13 @@ export async function getUserProfile(username, { signal } = {}) {
 
 export function followUser(username, targetUsername) {
   return api.post(`/usuarios/${encodeURIComponent(username)}/seguir/${encodeURIComponent(targetUsername)}`)
+}
+
+export function unfollowUser(username, targetUsername) {
+  return api.delete(`/usuarios/${encodeURIComponent(username)}/seguir/${encodeURIComponent(targetUsername)}`)
+}
+
+export async function getSuggestions(username, { signal } = {}) {
+  const { data } = await api.get(`/usuarios/${encodeURIComponent(username)}/sugerencias`, { signal })
+  return getCollection(data, 'sugerencias').filter((item) => item.recomendado)
 }

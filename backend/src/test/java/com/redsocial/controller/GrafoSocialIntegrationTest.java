@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 /**
  * Pruebas de integración para los endpoints del grafo social, feed y perfil de usuario.
@@ -31,9 +32,10 @@ class GrafoSocialIntegrationTest {
     @Inject
     GrafoSocialRepository grafoSocialRepository;
 
-    /**
-     * Configura los mocks en memoria del driver de Neo4j antes de cada prueba.
-     */
+    private String token(String username) {
+        return Jwt.issuer("https://redsocial.com/issuer").upn(username).groups("Usuario").expiresIn(Duration.ofMinutes(5)).sign();
+    }
+
     @BeforeEach
     void configurarMocksEnMemoria() {
         Record feedRecord = (Record) Proxy.newProxyInstance(
@@ -49,6 +51,8 @@ class GrafoSocialIntegrationTest {
                             case "media_url" -> Values.value("http://localhost:9090/red-social-media/p1/foto.jpg");
                             case "fecha_publicacion" -> Values.value("2026-10-03T12:00:00Z");
                             case "reacciones" -> Values.value(5L);
+                            case "liked" -> Values.value(true);
+                            case "media_tipo" -> Values.value("image");
                             case "recomendado" -> Values.value("said");
                             case "conexiones_en_comun" -> Values.value(2L);
                             case "username" -> Values.value("carlos");
@@ -134,7 +138,7 @@ class GrafoSocialIntegrationTest {
                 .statusCode(500);
 
         // 3. Seguir usuario exitoso (200)
-        given()
+        given().auth().oauth2(token("u1"))
         .when()
                 .post("/api/usuarios/u1/seguir/u2")
         .then()
@@ -142,28 +146,28 @@ class GrafoSocialIntegrationTest {
                 .body(containsString("Relación [:SIGUE] creada exitosamente"));
 
         // 4. Seguir a sí mismo (400)
-        given()
+        given().auth().oauth2(token("u1"))
         .when()
                 .post("/api/usuarios/u1/seguir/u1")
         .then()
                 .statusCode(400);
 
         // 5. Seguir usuario inexistente (404)
-        given()
+        given().auth().oauth2(token("no_existe"))
         .when()
                 .post("/api/usuarios/no_existe/seguir/u2")
         .then()
                 .statusCode(404);
 
         // 6. Seguir con fallo de BD (500)
-        given()
+        given().auth().oauth2(token("error_db"))
         .when()
                 .post("/api/usuarios/error_db/seguir/u2")
         .then()
                 .statusCode(500);
 
         // 7. Dejar de seguir exitoso (200)
-        given()
+        given().auth().oauth2(token("u1"))
         .when()
                 .delete("/api/usuarios/u1/seguir/u2")
         .then()
@@ -171,14 +175,14 @@ class GrafoSocialIntegrationTest {
                 .body(containsString("Relación [:SIGUE] eliminada exitosamente"));
 
         // 8. Dejar de seguir relación inexistente (404)
-        given()
+        given().auth().oauth2(token("no_existe"))
         .when()
                 .delete("/api/usuarios/no_existe/seguir/u2")
         .then()
                 .statusCode(404);
 
         // 9. Dejar de seguir con fallo de BD (500)
-        given()
+        given().auth().oauth2(token("error_db"))
         .when()
                 .delete("/api/usuarios/error_db/seguir/u2")
         .then()
@@ -268,5 +272,21 @@ class GrafoSocialIntegrationTest {
         .then()
                 .statusCode(200)
                 .body(containsString("usuarios"));
+    }
+
+    @Test
+    void protegeLosSeguimientosDeOtrasCuentas() {
+        given().when().post("/api/usuarios/u1/seguir/u2").then().statusCode(401);
+        given().when().delete("/api/usuarios/u1/seguir/u2").then().statusCode(401);
+        given().auth().oauth2(token("u2")).when().post("/api/usuarios/u1/seguir/u2").then().statusCode(403);
+        given().auth().oauth2(token("u2")).when().delete("/api/usuarios/u1/seguir/u2").then().statusCode(403);
+    }
+
+    @Test
+    void devuelveElTipoDeArchivoYLaReaccionDelLector() {
+        given().auth().oauth2(token("u1")).when().get("/api/feed/u1")
+                .then().statusCode(200).body("feed[0].liked", equalTo(true)).body("feed[0].media_tipo", equalTo("image"));
+        given().auth().oauth2(token("u1")).when().get("/api/usuarios/u2/posts")
+                .then().statusCode(200).body("posts[0].liked", equalTo(true)).body("posts[0].media_tipo", equalTo("image"));
     }
 }
