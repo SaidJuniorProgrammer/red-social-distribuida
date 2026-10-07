@@ -143,3 +143,85 @@ RETURN p.id_post            AS id_post,
        p.fecha_publicacion  AS fecha_publicacion,
        count(r)             AS reacciones
 ORDER BY p.fecha_publicacion DESC;
+
+// ============================================================
+// NOTIFICACIONES (issue #44)
+// Nodo (:Notificacion) ligado al usuario DESTINATARIO con [:RECIBE] y al
+// usuario ORIGEN del evento con [:ORIGINADA_POR].
+// tipo: SEGUIMIENTO | MENSAJE | PUBLICACION | LIKE
+// Propiedades: id_notificacion, tipo, mensaje, referencia, url_interna,
+//              id_origen, fecha, leido
+// ============================================================
+
+// ------------------------------------------------------------
+// 13) GUARDAR una notificación (idempotente / anti-duplicados)
+//     MERGE sobre (:Notificacion {clave_dedup}) — propiedad con constraint de
+//     unicidad — garantiza que no se dupliquen ni siquiera ante peticiones
+//     concurrentes (la BD serializa el MERGE sobre esa propiedad única).
+//     clave_dedup = destinatario|tipo|referencia|origen.
+//     Luego se enlazan RECIBE y ORIGINADA_POR entre nodos ya resueltos.
+//     WHERE dest <> orig impide auto-notificarse.
+// ------------------------------------------------------------
+MATCH (dest:Usuario {id_usuario: $idDestinatario}), (orig:Usuario {id_usuario: $idOrigen})
+WHERE dest <> orig
+WITH dest, orig,
+     $idDestinatario + '|' + $tipo + '|' + $referencia + '|' + $idOrigen AS clave
+MERGE (n:Notificacion {clave_dedup: clave})
+  ON CREATE SET n.id_notificacion = $idNotificacion,
+                n.tipo            = $tipo,
+                n.referencia      = $referencia,
+                n.id_origen       = $idOrigen,
+                n.mensaje         = $mensaje,
+                n.url_interna     = $urlInterna,
+                n.fecha           = datetime(),
+                n.leido           = false
+MERGE (dest)-[:RECIBE]->(n)
+MERGE (n)-[:ORIGINADA_POR]->(orig)
+RETURN n.id_notificacion AS id_notificacion, n.leido AS leido;
+
+// ------------------------------------------------------------
+// 14) LISTAR las notificaciones de un usuario (más recientes primero)
+// ------------------------------------------------------------
+MATCH (dest:Usuario {id_usuario: $miId})-[:RECIBE]->(n:Notificacion)
+OPTIONAL MATCH (n)-[:ORIGINADA_POR]->(orig:Usuario)
+RETURN n.id_notificacion AS id_notificacion,
+       n.tipo            AS tipo,
+       n.mensaje         AS mensaje,
+       n.referencia      AS referencia,
+       n.url_interna     AS url_interna,
+       orig.username     AS origen,
+       n.fecha           AS fecha,
+       n.leido           AS leido
+ORDER BY n.fecha DESC
+LIMIT 50;
+
+// ------------------------------------------------------------
+// 15) MARCAR UNA notificación como leída (acotada al destinatario)
+// ------------------------------------------------------------
+MATCH (dest:Usuario {id_usuario: $miId})-[:RECIBE]->(n:Notificacion {id_notificacion: $idNotificacion})
+SET n.leido = true
+RETURN n.id_notificacion AS id_notificacion, n.leido AS leido;
+
+// ------------------------------------------------------------
+// 16) MARCAR TODAS como leídas
+// ------------------------------------------------------------
+MATCH (dest:Usuario {id_usuario: $miId})-[:RECIBE]->(n:Notificacion)
+WHERE n.leido = false
+SET n.leido = true
+RETURN count(n) AS marcadas;
+
+// ------------------------------------------------------------
+// 17) CONTAR las NO leídas (para el punto/contador de la barra)
+// ------------------------------------------------------------
+MATCH (dest:Usuario {id_usuario: $miId})-[:RECIBE]->(n:Notificacion)
+WHERE n.leido = false
+RETURN count(n) AS no_leidas;
+
+// ------------------------------------------------------------
+// 18) LIMPIAR notificaciones antiguas (política de retención)
+//     Borra las que tengan más de $dias días. DETACH DELETE quita
+//     también sus relaciones RECIBE / ORIGINADA_POR.
+// ------------------------------------------------------------
+MATCH (n:Notificacion)
+WHERE n.fecha < datetime() - duration({days: $dias})
+DETACH DELETE n;

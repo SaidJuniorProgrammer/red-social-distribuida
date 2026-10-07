@@ -26,6 +26,20 @@ FOR (m:Mensaje) REQUIRE m.id_mensaje IS UNIQUE;
 CREATE CONSTRAINT push_subscription_endpoint IF NOT EXISTS
 FOR (s:PushSubscription) REQUIRE s.endpoint IS UNIQUE;
 
+CREATE CONSTRAINT notificacion_id IF NOT EXISTS
+FOR (n:Notificacion) REQUIRE n.id_notificacion IS UNIQUE;
+
+// Clave única de deduplicación: evita notificaciones repetidas incluso ante
+// creación concurrente (issue #44). La BD serializa el MERGE sobre esta
+// propiedad. Es una sola propiedad porque Neo4j Community no soporta
+// constraints de unicidad compuestas (destinatario|tipo|referencia|origen).
+CREATE CONSTRAINT notificacion_dedup IF NOT EXISTS
+FOR (n:Notificacion) REQUIRE n.clave_dedup IS UNIQUE;
+
 // --- Índices para consultas frecuentes ---
 CREATE INDEX post_fecha IF NOT EXISTS
 FOR (p:Post) ON (p.fecha_publicacion);
+
+// Ordenar notificaciones por fecha y apoyar la limpieza de antiguas (issue #44)
+CREATE INDEX notificacion_fecha IF NOT EXISTS
+FOR (n:Notificacion) ON (n.fecha);
