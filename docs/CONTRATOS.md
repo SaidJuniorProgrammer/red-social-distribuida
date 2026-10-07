@@ -151,7 +151,7 @@ Todas las rutas van bajo el prefijo `/api`. Salvo `vapid-public-key`, requieren 
 | `tipo` | Recomendado (`FOLLOW`/`MENSAJE`/`POST`/`LIKE`) | Se infiere del texto de `mensaje` (frágil). No distingue mayúsculas. |
 | `actor` | Recomendado | Alias: `autor`, `usuario_origen`. Sin actor, seguimiento→`/explorar`, mensaje→`/chat`. |
 | `mensaje` | Requerido | Se muestra como cuerpo de la notificación en la bandeja. |
-| `referencia` | Opcional (ruta **interna**: debe empezar con `/` y no `//`) | Se calcula por tipo: seguimiento→`/perfil/{actor}`, mensaje→`/chat?usuario={actor}`, like/post→`/feed`. Alias: `url_interna`, `url`. |
+| `referencia` | Opcional (ruta **interna**: debe empezar con `/` y no `//`) | Se calcula por tipo: seguimiento→`/perfil/{actor}`, mensaje→`/chat?usuario={actor}`, like/post→`/feed`. El backend envía `/mensajes` para avisos de chat y el frontend lo traduce a `/chat?usuario={actor}`. Alias: `url_interna`, `url`. |
 | `fecha` | Requerido (ISO-8601) | El frontend ordena desc. Alias: `timestamp`. |
 | `leida` | **Requerido** para el contador de no leídas | Sin él, todo cuenta como no leído. Alias: `leido`, `read`. |
 
