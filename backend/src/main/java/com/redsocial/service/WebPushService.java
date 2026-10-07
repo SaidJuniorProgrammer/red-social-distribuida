@@ -140,8 +140,8 @@ public class WebPushService {
         String referencia = "/feed"; // Navega al feed
 
         for (String seguidor : seguidores) {
-            String idNotificacion = "POST_" + autor.trim() + "_" + idPost;
-            procesarYEnviarNotificacion(idNotificacion, "POST", autor.trim(), seguidor, titulo, mensaje, referencia);
+            String idNotificacion = "PUBLICACION_" + autor.trim() + "_" + idPost;
+            procesarYEnviarNotificacion(idNotificacion, "PUBLICACION", autor.trim(), seguidor, titulo, mensaje, referencia);
         }
     }
 
@@ -161,19 +161,19 @@ public class WebPushService {
      * Notifica a un usuario cuando recibe un nuevo seguidor.
      */
     public void notificarNuevoSeguidor(String seguidor, String seguido) {
-        String idNotificacion = "FOLLOW_" + seguidor.trim() + "_" + seguido.trim();
+        String idNotificacion = "SEGUIMIENTO_" + seguidor.trim() + "_" + seguido.trim();
         String titulo = "Nuevo Seguidor";
         String mensaje = "@" + seguidor.trim() + " ha comenzado a seguirte.";
         String referencia = "/perfil/" + seguidor.trim(); // Navega al perfil del nuevo seguidor
 
-        procesarYEnviarNotificacion(idNotificacion, "FOLLOW", seguidor.trim(), seguido.trim(), titulo, mensaje, referencia);
+        procesarYEnviarNotificacion(idNotificacion, "SEGUIMIENTO", seguidor.trim(), seguido.trim(), titulo, mensaje, referencia);
     }
 
     /**
      * Notifica a un usuario cuando recibe un mensaje privado en el chat.
      */
     public void notificarNuevoMensaje(String emisor, String destinatario, String idMensaje) {
-        String idNotificacion = "MSG_" + emisor.trim() + "_" + idMensaje;
+        String idNotificacion = "MENSAJE_" + emisor.trim() + "_" + idMensaje;
         String titulo = "Nuevo Mensaje";
         String mensaje = "@" + emisor.trim() + " te ha enviado un mensaje.";
         String referencia = "/mensajes"; // Navega a la ventana de chat
