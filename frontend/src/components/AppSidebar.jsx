@@ -47,9 +47,10 @@ function AppSidebar() {
         })}
       </nav>
 
-      <button className="primary-button messages-sidebar__post" type="button" disabled>
+      <NavLink className="primary-button messages-sidebar__post" to="/publicar">
+        <span aria-hidden="true">＋</span>
         Postear
-      </button>
+      </NavLink>
 
       <div className="messages-profile">
         <span className="messages-avatar" aria-hidden="true">

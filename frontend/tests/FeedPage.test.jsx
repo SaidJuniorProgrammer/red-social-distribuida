@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, expect, it, vi } from 'vitest'
 import AuthContext from '../src/context/authContext.js'
 import FeedPage from '../src/pages/FeedPage.jsx'
@@ -8,9 +9,11 @@ const user = { username: 'oscar' }
 
 function renderFeed() {
   return render(
-    <AuthContext.Provider value={{ user }}>
-      <FeedPage />
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <AuthContext.Provider value={{ user }}>
+        <FeedPage />
+      </AuthContext.Provider>
+    </MemoryRouter>,
   )
 }
 
@@ -37,6 +40,10 @@ it('carga el feed y permite dar y quitar Me gusta', async () => {
   renderFeed()
 
   expect(await screen.findByText('Una publicación distribuida')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Crear publicación/ })).toHaveAttribute(
+    'href',
+    '/publicar',
+  )
   expect(api.get).toHaveBeenCalledWith('/feed/oscar', expect.objectContaining({
     signal: expect.any(AbortSignal),
   }))

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import useAuth from '../hooks/useAuth.js'
 import { getFeed, likePost, unlikePost } from '../services/feed.js'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
@@ -17,6 +18,7 @@ function formatPublishedAt(value) {
 
 function FeedPage() {
   const { user } = useAuth()
+  const location = useLocation()
   const [posts, setPosts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -88,8 +90,16 @@ function FeedPage() {
           <p>Sesión activa</p>
           <h1>Hola, @{user?.username}</h1>
         </div>
+        <Link className="primary-button feed-create-link" to="/publicar">
+          ＋ Crear publicación
+        </Link>
       </header>
 
+      {location.state?.publicationCreated && (
+        <p className="form-message form-message--success feed-alert" role="status">
+          Tu publicación se creó correctamente.
+        </p>
+      )}
       {likeError && <p className="form-message form-message--error feed-alert" role="alert">{likeError}</p>}
       {isLoading && <p className="feed-status" role="status">Cargando publicaciones…</p>}
       {!isLoading && loadError && <p className="feed-status feed-status--error" role="alert">{loadError}</p>}
@@ -97,7 +107,7 @@ function FeedPage() {
         <section className="feed-empty">
           <span aria-hidden="true">◇</span>
           <h2>Tu feed está al día</h2>
-          <p>Cuando las personas que sigues publiquen algo, aparecerá aquí.</p>
+          <p>Cuando alguien publique contenido público, aparecerá aquí.</p>
         </section>
       )}
 

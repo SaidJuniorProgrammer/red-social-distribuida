@@ -36,6 +36,7 @@ describe.each(routes)('ruta $path', ({ heading, level, path }) => {
 
 describe.each([
   '/feed',
+  '/publicar',
   '/explorar',
   '/notificaciones',
   '/guardados',
@@ -52,6 +53,7 @@ describe.each([
 })
 
 describe.each([
+  { path: '/publicar', link: 'Postear', heading: 'Crear publicación' },
   { path: '/explorar', link: 'Explorar', heading: 'Explorar' },
   { path: '/guardados', link: 'Guardados', heading: 'Guardados' },
   { path: '/comunidades', link: 'Comunidades', heading: 'Comunidades' },

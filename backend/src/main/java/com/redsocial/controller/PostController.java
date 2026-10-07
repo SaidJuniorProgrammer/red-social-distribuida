@@ -7,6 +7,7 @@ import com.redsocial.repository.GrafoSocialRepository;
 import com.redsocial.repository.PostRepository;
 import com.redsocial.service.S3StorageService;
 import com.redsocial.service.WebPushService;
+import io.quarkus.security.Authenticated;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -33,6 +34,8 @@ import java.util.UUID;
 public class PostController {
 
     private static final Logger LOG = Logger.getLogger(PostController.class);
+    private static final int MAX_TEXT_LENGTH = 500;
+    private static final long MAX_MEDIA_SIZE_BYTES = 10L * 1024L * 1024L;
     private static final String STATUS_SUCCESS = "success";
 
     @Inject
@@ -51,55 +54,85 @@ public class PostController {
      * Crea una nueva publicación subiendo su archivo multimedia a S3 y registrando el nodo en Neo4j.
      *
      * @param texto           contenido textual de la publicación
-     * @param autorForm       autor enviado en el formulario multipart
-     * @param archivo         archivo multimedia adjunto
+     * @param archivo         archivo multimedia opcional
      * @param securityContext contexto de seguridad de la petición
      * @return respuesta HTTP 201 con los datos de la publicación creada
      */
     @POST
+    @Authenticated
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Response crearPost(
             @RestForm("texto") String texto,
-            @RestForm("autor") String autorForm,
             @RestForm("archivo") FileUpload archivo,
             @Context SecurityContext securityContext
     ) {
         try {
-            if (texto == null || texto.trim().isEmpty()) {
+            String textoNormalizado = texto == null ? "" : texto.trim();
+            if (textoNormalizado.isEmpty()) {
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity(new ApiErrorResponse("INVALID_POST", "texto", "El texto de la publicación es obligatorio."))
                         .build();
             }
 
-            if (archivo == null || archivo.uploadedFile() == null) {
+            if (textoNormalizado.length() > MAX_TEXT_LENGTH) {
                 return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(new ApiErrorResponse("INVALID_POST", "archivo", "El archivo multimedia es obligatorio."))
+                        .entity(new ApiErrorResponse(
+                                "INVALID_POST",
+                                "texto",
+                                "La publicación no puede superar los 500 caracteres."
+                        ))
                         .build();
             }
 
-            String autor = obtenerAutor(autorForm, securityContext);
+            String autor = obtenerAutor(null, securityContext);
             if (autor == null || autor.isBlank()) {
                 return Response.status(Response.Status.UNAUTHORIZED)
-                        .entity(new ApiErrorResponse("UNAUTHORIZED", "autor", "Debes iniciar sesión o indicar el autor."))
+                        .entity(new ApiErrorResponse("UNAUTHORIZED", "autor", "Debes iniciar sesión para publicar."))
                         .build();
             }
 
             String idPost = UUID.randomUUID().toString();
             String fechaPublicacion = Instant.now().toString();
-            String contentType = archivo.contentType();
-            String mediaTipo = (contentType != null && contentType.startsWith("video")) ? "video" : "image";
+            String mediaUrl = null;
+            String mediaTipo = null;
 
-            String mediaUrl = s3StorageService.subirArchivo(
-                    idPost,
-                    archivo.fileName(),
-                    contentType,
-                    archivo.uploadedFile()
-            );
+            if (archivo != null && archivo.uploadedFile() != null) {
+                String contentType = archivo.contentType();
+                boolean esImagen = contentType != null && contentType.startsWith("image/");
+                boolean esVideo = contentType != null && contentType.startsWith("video/");
+                if (!esImagen && !esVideo) {
+                    return Response.status(Response.Status.BAD_REQUEST)
+                            .entity(new ApiErrorResponse(
+                                    "INVALID_POST",
+                                    "archivo",
+                                    "El archivo debe ser una imagen o un video."
+                            ))
+                            .build();
+                }
+
+                if (archivo.size() > MAX_MEDIA_SIZE_BYTES) {
+                    return Response.status(Response.Status.BAD_REQUEST)
+                            .entity(new ApiErrorResponse(
+                                    "INVALID_POST",
+                                    "archivo",
+                                    "El archivo no puede superar los 10 MB."
+                            ))
+                            .build();
+                }
+
+                mediaTipo = esVideo ? "video" : "image";
+                mediaUrl = s3StorageService.subirArchivo(
+                        idPost,
+                        archivo.fileName(),
+                        contentType,
+                        archivo.uploadedFile()
+                );
+            }
 
             boolean creado = postRepository.crearPost(
                     idPost,
                     autor.trim(),
-                    texto.trim(),
+                    textoNormalizado,
                     mediaUrl,
                     mediaTipo,
                     fechaPublicacion
@@ -111,12 +144,12 @@ public class PostController {
                         .build();
             }
 
-            webPushService.notificarSeguidoresNuevaPublicacion(autor.trim(), idPost, texto.trim());
+            webPushService.notificarSeguidoresNuevaPublicacion(autor.trim(), idPost, textoNormalizado);
 
             PostResponse response = new PostResponse(
                     idPost,
                     autor.trim(),
-                    texto.trim(),
+                    textoNormalizado,
                     mediaUrl,
                     mediaTipo,
                     fechaPublicacion,

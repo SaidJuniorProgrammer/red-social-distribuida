@@ -43,15 +43,18 @@ public class GrafoSocialRepository {
     }
 
     /**
-     * Obtiene el feed personalizado del usuario ordenado por fecha descendente (Consulta N.° 3).
+     * Obtiene las publicaciones públicas ordenadas por fecha descendente.
      *
      * @param miId identificador o username del usuario
      * @return lista de publicaciones del feed
      */
     public List<FeedItemResponse> obtenerFeed(String miId) {
         String query = """
-            MATCH (yo:Usuario)-[:SIGUE]->(autor:Usuario)-[:PUBLICA]->(p:Post)
+            MATCH (yo:Usuario)
             WHERE yo.id_usuario = $miId OR yo.username = $miId OR yo.id = $miId
+            WITH count(yo) AS usuariosSolicitantes
+            WHERE usuariosSolicitantes > 0
+            MATCH (autor:Usuario)-[:PUBLICA]->(p:Post)
             OPTIONAL MATCH (p)<-[r:REACCIONA]-()
             RETURN p.id_post AS id_post,
                    autor.username AS autor,

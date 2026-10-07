@@ -3,6 +3,7 @@ import AppLayout from './components/AppLayout.jsx'
 import PagePlaceholder from './components/PagePlaceholder.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ChatPage from './pages/ChatPage.jsx'
+import CreatePostPage from './pages/CreatePostPage.jsx'
 import ExplorePage from './pages/ExplorePage.jsx'
 import FeedPage from './pages/FeedPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
@@ -24,6 +25,7 @@ function App() {
         }
       >
         <Route path="/feed" element={<FeedPage />} />
+        <Route path="/publicar" element={<CreatePostPage />} />
         <Route path="/explorar" element={<ExplorePage />} />
         <Route path="/notificaciones" element={<NotificationsPage />} />
         <Route path="/chat" element={<ChatPage />} />
