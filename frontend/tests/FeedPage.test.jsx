@@ -83,6 +83,26 @@ it('muestra el estado inicial de una reacción y contenido multimedia', async ()
   expect(screen.getByText('fecha externa')).toBeInTheDocument()
 })
 
+it('conserva la publicación cuando su imagen no está disponible', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({
+    data: {
+      feed: [createPost({
+        media_url: 'https://cdn.example/no-existe.png',
+        fecha_publicacion: '2026-10-05T15:30:00Z',
+      })],
+    },
+  })
+  renderFeed()
+
+  const image = await screen.findByRole('img', { name: 'Contenido publicado por @said' })
+  fireEvent.error(image)
+
+  expect(screen.getByText('Una publicación distribuida')).toBeInTheDocument()
+  expect(screen.getByText('@said')).toBeInTheDocument()
+  expect(screen.getByLabelText('2 reacciones')).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('Contenido multimedia no disponible')
+})
+
 it('restaura el contador e informa cuando falla la reacción', async () => {
   vi.spyOn(api, 'get').mockResolvedValue({ data: { feed: [createPost()] } })
   vi.spyOn(api, 'post').mockRejectedValue(new Error('Servidor no disponible'))
