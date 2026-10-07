@@ -23,6 +23,7 @@ graph LR
     P(("Post"))
     C(("Conversacion"))
     M(("Mensaje"))
+    N(("Notificacion"))
 
     U1 -- "SIGUE {desde}" --> U2
     U1 -- "PUBLICA" --> P
@@ -31,6 +32,8 @@ graph LR
     U2 -- "PARTICIPA" --> C
     U1 -- "ENVIA" --> M
     M  -- "EN" --> C
+    U2 -- "RECIBE" --> N
+    N  -- "ORIGINADA_POR" --> U1
 ```
 
 Patrón mínimo exigido por la actividad, ya cubierto:
@@ -98,7 +101,8 @@ Una notificación persistente dirigida a un usuario (seguimiento, mensaje, publi
 | `mensaje`          | String   | Texto de la notificación.                                    |
 | `referencia`       | String   | Id del destino (post, conversación o perfil).                |
 | `url_interna`      | String   | Ruta interna a la que navega al pulsarla.                    |
-| `id_origen`        | String   | Id del usuario que originó el evento (clave anti-duplicado). |
+| `id_origen`        | String   | Id del usuario que originó el evento.                        |
+| `clave_dedup`      | String   | Clave única `destinatario\|tipo\|referencia\|origen` (anti-duplicados, con constraint). |
 | `fecha`            | DateTime | Momento de la notificación.                                  |
 | `leido`            | Boolean  | Estado leído/no leído.                                       |
 
