@@ -278,22 +278,19 @@ a { color: inherit; }
 .profile-empty { display: grid; min-height: 12rem; place-content: center; justify-items: center; color: #81788c; text-align: center; }
 .profile-empty > span { color: #8d55df; font-size: 1.4rem; }
 .profile-empty p { margin: .65rem 0 0; font-size: .78rem; }
-.profile-slider { min-width: 0; padding: 1.2rem; border: 1px solid #e2d9ee; border-radius: 1rem; background: #fff; box-shadow: 0 .8rem 2.4rem rgb(65 39 100 / 5%); }
-.profile-slider__header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-.profile-slider__header h2 { margin: 0; font: 700 1rem 'Plus Jakarta Sans', sans-serif; }
-.profile-slider__header p { margin: .3rem 0 0; color: #81788c; font-size: .7rem; }
-.profile-slider__controls { display: flex; gap: .45rem; }
-.profile-slider__controls button { width: 2.35rem; height: 2.35rem; border: 1px solid #ded1ef; border-radius: .65rem; color: #6d33c4; background: #fff; cursor: pointer; font-size: 1rem; transition: color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease; }
-.profile-slider__controls button:hover:not(:disabled) { color: #fff; background: #7434cf; box-shadow: 0 .45rem 1rem rgb(116 52 207 / 20%); transform: translateY(-1px); }
-.profile-slider__controls button:focus-visible { outline: 2px solid #8b4bdd; outline-offset: 2px; }
-.profile-slider__controls button:disabled { cursor: default; opacity: .38; }
-.profile-slider__viewport { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(13rem, 16rem); gap: .75rem; margin: 0; padding: .25rem .2rem .8rem; overflow-x: auto; overscroll-behavior-inline: contain; scroll-behavior: smooth; scroll-snap-type: inline mandatory; scrollbar-color: #bba4dc #eee8f4; scrollbar-width: thin; list-style: none; }
-.profile-user-card { min-width: 0; display: flex; align-items: center; gap: .8rem; padding: 1rem; border: 1px solid #e9e1f2; border-radius: .75rem; background: #faf8fd; scroll-snap-align: start; transition: border-color 160ms ease, background 160ms ease, transform 160ms ease; }
-.profile-user-card:hover { border-color: #d7c5ec; background: #f5effb; transform: translateY(-2px); }
-.profile-user-card > span:last-child { min-width: 0; display: grid; gap: .15rem; }
+.profile-connections { min-width: 0; padding: 1.2rem; border: 1px solid #e2d9ee; border-radius: 1rem; background: #fff; box-shadow: 0 .8rem 2.4rem rgb(65 39 100 / 5%); }
+.profile-connections h2 { margin: 0 0 1rem; font: 700 1rem 'Plus Jakarta Sans', sans-serif; }
+.profile-connections__list { display: grid; gap: .65rem; margin: 0; padding: 0; list-style: none; }
+.profile-user-card { min-width: 0; display: flex; align-items: center; gap: .8rem; padding: .9rem; border: 1px solid #e9e1f2; border-radius: .75rem; background: #faf8fd; }
+.profile-user-card .messages-avatar { flex-shrink: 0; }
+.profile-user-card__identity { min-width: 0; flex: 1; display: grid; gap: .15rem; }
 .profile-user-card strong, .profile-user-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-user-card strong { font-size: .78rem; }
 .profile-user-card small { color: #81788c; font-size: .68rem; }
+.profile-follow-button { flex-shrink: 0; min-height: 2.5rem; min-width: 5rem; padding: .5rem .7rem; border: 1px solid #7434cf; border-radius: .6rem; color: #fff; background: #7434cf; cursor: pointer; font: inherit; font-size: .75rem; font-weight: 700; transition: background 160ms ease, transform 160ms ease; }
+.profile-follow-button:hover:not(:disabled) { background: #5d2aa8; transform: translateY(-1px); }
+.profile-follow-button:focus-visible { outline: 2px solid #8b4bdd; outline-offset: 2px; }
+.profile-follow-button:disabled { color: #756783; background: #eee7f6; border-color: #e0d5ec; cursor: default; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 50% { opacity: .35; } }
@@ -366,7 +363,8 @@ a { color: inherit; }
   .profile-tabs button { min-height: 2.7rem; padding: .35rem .2rem; }
   .profile-tabs button span { font-size: .66rem; }
   .profile-panel { padding-top: .8rem; }
-  .profile-slider__header { align-items: flex-start; }
+  .profile-connections { padding: .8rem; }
+  .profile-user-card { gap: .5rem; padding: .65rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

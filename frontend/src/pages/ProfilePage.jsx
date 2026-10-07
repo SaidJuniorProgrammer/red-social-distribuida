@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import PostCard from '../components/PostCard.jsx'
 import useAuth from '../hooks/useAuth.js'
-import { getUserProfile } from '../services/profile.js'
+import { followUser, getUserProfile } from '../services/profile.js'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
 
 const PROFILE_SECTIONS = [
@@ -20,6 +20,29 @@ function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeSection, setActiveSection] = useState('posts')
+  const pendingRequests = useRef(new Set())
+  const [pendingUsers, setPendingUsers] = useState([])
+  const [followError, setFollowError] = useState('')
+
+  const follow = async (username) => {
+    if (pendingRequests.current.has(username) || profile.following.includes(username)) return
+
+    pendingRequests.current.add(username)
+    setPendingUsers([...pendingRequests.current])
+    setFollowError('')
+    try {
+      await followUser(user.username, username)
+      setProfile((current) => ({
+        ...current,
+        following: [...new Set([...current.following, username])].sort((a, b) => a.localeCompare(b)),
+      }))
+    } catch {
+      setFollowError(`No pudimos seguir a @${username}. Inténtalo de nuevo.`)
+    } finally {
+      pendingRequests.current.delete(username)
+      setPendingUsers([...pendingRequests.current])
+    }
+  }
 
   useEffect(() => {
     if (!user?.username) return undefined
@@ -104,19 +127,23 @@ function ProfilePage() {
           >
             {activeSection === 'posts' && <ProfilePosts posts={profile.posts} />}
             {activeSection === 'followers' && (
-              <UserSlider
+              <UserList
                 emptyMessage="Todavía no tienes seguidores."
                 label="seguidores"
                 users={profile.followers}
+                following={profile.following}
+                pendingUsers={pendingUsers}
+                onFollow={follow}
               />
             )}
             {activeSection === 'following' && (
-              <UserSlider
+              <UserList
                 emptyMessage="Todavía no sigues a ninguna cuenta."
                 label="seguidos"
                 users={profile.following}
               />
             )}
+            {followError && <p className="form-message form-message--error" role="alert">{followError}</p>}
           </section>
         </div>
       )}
@@ -143,38 +170,7 @@ function ProfilePosts({ posts }) {
   )
 }
 
-function UserSlider({ emptyMessage, label, users }) {
-  const listRef = useRef(null)
-  const [canGoBack, setCanGoBack] = useState(false)
-  const [canGoForward, setCanGoForward] = useState(users.length > 1)
-
-  const updateSliderControls = useCallback(() => {
-    const list = listRef.current
-    if (!list) return
-
-    const hasMeasuredWidth = list.clientWidth > 0
-    setCanGoBack(list.scrollLeft > 1)
-    setCanGoForward(
-      hasMeasuredWidth
-        ? list.scrollLeft + list.clientWidth < list.scrollWidth - 1
-        : users.length > 1,
-    )
-  }, [users.length])
-
-  useEffect(() => {
-    const list = listRef.current
-    if (!list) return undefined
-
-    updateSliderControls()
-    list.addEventListener('scroll', updateSliderControls, { passive: true })
-    window.addEventListener('resize', updateSliderControls)
-
-    return () => {
-      list.removeEventListener('scroll', updateSliderControls)
-      window.removeEventListener('resize', updateSliderControls)
-    }
-  }, [updateSliderControls])
-
+function UserList({ emptyMessage, label, users, following = [], pendingUsers = [], onFollow }) {
   if (users.length === 0) {
     return (
       <div className="profile-empty">
@@ -184,47 +180,28 @@ function UserSlider({ emptyMessage, label, users }) {
     )
   }
 
-  const moveSlider = (direction) => {
-    listRef.current?.scrollBy?.({
-      behavior: 'smooth',
-      left: direction * 280,
-    })
-  }
-
   return (
-    <div className="profile-slider">
-      <header className="profile-slider__header">
-        <div>
-          <h2>{label === 'seguidores' ? 'Personas que te siguen' : 'Cuentas que sigues'}</h2>
-          <p>Desliza horizontalmente para recorrer la lista.</p>
-        </div>
-        <div className="profile-slider__controls">
-          <button
-            type="button"
-            aria-label={`Ver ${label} anteriores`}
-            disabled={!canGoBack}
-            onClick={() => moveSlider(-1)}
-          >
-            ←
-          </button>
-          <button
-            type="button"
-            aria-label={`Ver ${label} siguientes`}
-            disabled={!canGoForward}
-            onClick={() => moveSlider(1)}
-          >
-            →
-          </button>
-        </div>
-      </header>
-      <ul className="profile-slider__viewport" aria-label={`Lista de ${label}`} ref={listRef}>
+    <div className="profile-connections">
+      <h2>{label === 'seguidores' ? 'Personas que te siguen' : 'Cuentas que sigues'}</h2>
+      <ul className="profile-connections__list" aria-label={`Lista de ${label}`}>
         {users.map((username) => (
           <li className="profile-user-card" key={username}>
             <span className="messages-avatar" aria-hidden="true">{getInitial(username)}</span>
-            <span>
+            <span className="profile-user-card__identity">
               <strong>{formatDisplayName(username)}</strong>
               <small>@{username}</small>
             </span>
+            {onFollow && (
+              <button
+                className="profile-follow-button"
+                type="button"
+                disabled={following.includes(username) || pendingUsers.includes(username)}
+                aria-label={`${following.includes(username) ? 'Ya sigues a' : 'Seguir a'} @${username}`}
+                onClick={() => onFollow(username)}
+              >
+                {pendingUsers.includes(username) ? 'Siguiendo…' : 'Seguir'}
+              </button>
+            )}
           </li>
         ))}
       </ul>

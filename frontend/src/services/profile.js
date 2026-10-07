@@ -43,3 +43,7 @@ export async function getUserProfile(username, { signal } = {}) {
 
   return { followers, following, posts }
 }
+
+export function followUser(username, targetUsername) {
+  return api.post(`/usuarios/${encodeURIComponent(username)}/seguir/${encodeURIComponent(targetUsername)}`)
+}

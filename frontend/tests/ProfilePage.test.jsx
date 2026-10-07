@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import AuthContext from '../src/context/authContext.js'
 import ProfilePage from '../src/pages/ProfilePage.jsx'
@@ -56,27 +56,12 @@ it('muestra publicaciones, seguidores, seguidos y sus contadores', async () => {
   expect(screen.getByText('@estalin')).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: /Seguidores/ })).toHaveAttribute('aria-selected', 'true')
 
-  const followersSlider = screen.getByLabelText('Lista de seguidores')
-  followersSlider.scrollBy = vi.fn()
-  const previousFollowers = screen.getByRole('button', { name: 'Ver seguidores anteriores' })
-  const nextFollowers = screen.getByRole('button', { name: 'Ver seguidores siguientes' })
-  expect(previousFollowers).toBeDisabled()
-
-  fireEvent.click(nextFollowers)
-  expect(followersSlider.scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', left: 280 })
-
-  Object.defineProperties(followersSlider, {
-    clientWidth: { configurable: true, value: 100 },
-    scrollLeft: { configurable: true, value: 200, writable: true },
-    scrollWidth: { configurable: true, value: 600 },
-  })
-  fireEvent.scroll(followersSlider)
-  expect(previousFollowers).toBeEnabled()
-  fireEvent.click(previousFollowers)
-  expect(followersSlider.scrollBy).toHaveBeenLastCalledWith({ behavior: 'smooth', left: -280 })
+  expect(within(screen.getByRole('list', { name: 'Lista de seguidores' })).getAllByRole('listitem')).toHaveLength(2)
+  expect(screen.getByRole('button', { name: 'Seguir a @said' })).toBeEnabled()
 
   fireEvent.click(screen.getByRole('tab', { name: /Seguidos/ }))
   expect(screen.getByText('@ana')).toBeInTheDocument()
+  expect(within(screen.getByRole('tabpanel')).queryByRole('button')).not.toBeInTheDocument()
   expect(request).toHaveBeenNthCalledWith(
     1,
     '/usuarios/oscar/seguidores',
@@ -138,6 +123,53 @@ it('informa cuando no se puede cargar el perfil', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'No pudimos cargar tu perfil en este momento.',
   )
+})
+
+it('deshabilita cuentas ya seguidas y actualiza Seguidos después de seguir a un seguidor', async () => {
+  mockProfileRequests({ followers: ['said', 'estalin'], following: ['estalin'] })
+  let resolveFollow
+  const request = vi.spyOn(api, 'post').mockImplementation(() => new Promise((resolve) => {
+    resolveFollow = resolve
+  }))
+  renderProfile()
+  await screen.findByText('Aún no has publicado contenido.')
+  fireEvent.click(screen.getByRole('tab', { name: 'Seguidores' }))
+
+  expect(screen.getByRole('button', { name: 'Ya sigues a @estalin' })).toBeDisabled()
+  const button = screen.getByRole('button', { name: 'Seguir a @said' })
+  fireEvent.click(button)
+  fireEvent.click(button)
+  expect(button).toBeDisabled()
+  expect(button).toHaveTextContent('Siguiendo…')
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(request).toHaveBeenCalledWith('/usuarios/oscar/seguir/said')
+
+  await act(async () => resolveFollow({ data: { status: 'success' } }))
+  expect(screen.getByRole('button', { name: 'Ya sigues a @said' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Ya sigues a @said' })).toHaveTextContent('Seguir')
+  expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual(['0', '2', '2'])
+  fireEvent.click(screen.getByRole('tab', { name: 'Seguidos' }))
+  expect(screen.getByText('@said')).toBeInTheDocument()
+  expect(screen.getByText('@estalin')).toBeInTheDocument()
+  expect(within(screen.getByRole('tabpanel')).queryByRole('button')).not.toBeInTheDocument()
+})
+
+it('permite reintentar un seguimiento fallido sin alterar el contador', async () => {
+  mockProfileRequests({ followers: ['said'] })
+  const request = vi.spyOn(api, 'post')
+    .mockRejectedValueOnce(new Error('Sin conexión'))
+    .mockResolvedValueOnce({ data: { status: 'success' } })
+  renderProfile()
+  await screen.findByText('Aún no has publicado contenido.')
+  fireEvent.click(screen.getByRole('tab', { name: 'Seguidores' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Seguir a @said' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos seguir a @said.')
+  expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual(['0', '1', '0'])
+  fireEvent.click(screen.getByRole('button', { name: 'Seguir a @said' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Ya sigues a @said' })).toBeDisabled())
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(request).toHaveBeenCalledTimes(2)
 })
 
 it('cancela las solicitudes pendientes al desmontar la vista', () => {
