@@ -19,11 +19,11 @@ flowchart TD
     S3[("Almacenamiento S3-compatible (Adobe S3Mock local)")]
     Usuario(("Usuario"))
 
-    React <-->|REST / HTTP (JSON)| Quarkus
+    React <-->|REST| Quarkus
     React <-->|WebSocket| Quarkus
-    Quarkus <-->|Bolt / Cypher| Neo4j
-    Quarkus -->|API compatible con S3| S3
-    Quarkus -.->|Web Push / Service Worker| Usuario
+    Quarkus <-->|Bolt y Cypher| Neo4j
+    Quarkus -->|S3 API| S3
+    Quarkus -.->|Web Push| Usuario
 ```
 
 ## Tecnologías Utilizadas
