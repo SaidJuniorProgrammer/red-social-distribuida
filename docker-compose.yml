@@ -19,6 +19,11 @@ services:
       - "9090:9090" # Puerto HTTP para que se conecte Quarkus
     environment:
       - COM_ADOBE_TESTING_S3MOCK_STORE_INITIALBUCKETS=red-social-media # Bucket para las imágenes de publicaciones (issue #13); s3mock lo crea al arrancar
+      - COM_ADOBE_TESTING_S3MOCK_STORE_ROOT=/s3mockroot # Carpeta raíz de almacenamiento (se monta como volumen para persistir)
+      - COM_ADOBE_TESTING_S3MOCK_STORE_RETAINFILESONEXIT=true # Conserva los archivos al apagar o recrear el contenedor
+    volumes:
+      - s3mock_data:/s3mockroot # Volumen persistente: las imágenes sobreviven al recrear el contenedor
 
 volumes:
   neo4j_data:
+  s3mock_data:
