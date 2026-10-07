@@ -78,6 +78,10 @@ export async function markNotificationAsRead(notificationId) {
   await api.put(`/notificaciones/${encodeURIComponent(notificationId)}/leer`)
 }
 
+export async function markAllNotificationsAsRead() {
+  await api.put('/notificaciones/leer-todas')
+}
+
 function hasApplicationServerKey(subscription, expectedKey) {
   const currentKey = subscription.options?.applicationServerKey
   if (!currentKey) return false

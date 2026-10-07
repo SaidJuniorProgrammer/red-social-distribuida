@@ -14,7 +14,7 @@ import {
 } from '../utils/notifications.js'
 
 function NotificationsPage() {
-  const { error, loading, markAsRead, notifications, refresh } = useNotifications()
+  const { error, loading, markAllAsRead, markAsRead, notifications, refresh, unreadCount } = useNotifications()
 
   return (
     <main className="feed-placeholder">
@@ -23,7 +23,14 @@ function NotificationsPage() {
           <p>Actividad de tu cuenta</p>
           <h1>Notificaciones</h1>
         </div>
-        <button type="button" className="secondary-button" onClick={() => void refresh()}>Actualizar</button>
+        <div className="notification-inbox__actions">
+          {unreadCount > 0 && (
+            <button type="button" className="secondary-button" onClick={() => void markAllAsRead()}>
+              Marcar todas como leídas
+            </button>
+          )}
+          <button type="button" className="secondary-button" onClick={() => void refresh()}>Actualizar</button>
+        </div>
       </header>
       <section className="notification-inbox" aria-label="Actividad reciente">
         {loading && <p role="status">Cargando notificaciones…</p>}

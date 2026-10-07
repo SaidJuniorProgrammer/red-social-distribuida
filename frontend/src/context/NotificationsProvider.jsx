@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useAuth from '../hooks/useAuth.js'
-import { getNotifications, markNotificationAsRead } from '../services/webpush.js'
+import { getNotifications, markAllNotificationsAsRead, markNotificationAsRead } from '../services/webpush.js'
 import {
   getNotificationId,
   getNotificationKey,
@@ -82,14 +82,39 @@ function NotificationsProvider({ children }) {
     }
   }, [])
 
+  const markAllAsRead = useCallback(async () => {
+    const unreadKeys = notifications
+      .filter((notification) => !isNotificationRead(notification))
+      .map((notification) => getNotificationKey(notification))
+    if (!unreadKeys.length) return
+
+    const unreadKeySet = new Set(unreadKeys)
+    unreadKeys.forEach((key) => readOverrides.current.add(key))
+    setNotifications((current) => current.map((item) => (
+      unreadKeySet.has(getNotificationKey(item)) ? { ...item, leida: true } : item
+    )))
+
+    try {
+      await markAllNotificationsAsRead()
+      setError('')
+    } catch {
+      unreadKeys.forEach((key) => readOverrides.current.delete(key))
+      setNotifications((current) => current.map((item) => (
+        unreadKeySet.has(getNotificationKey(item)) ? { ...item, leida: false } : item
+      )))
+      setError('No pudimos marcar las notificaciones como leídas.')
+    }
+  }, [notifications])
+
   const value = useMemo(() => ({
     error,
     loading,
+    markAllAsRead,
     markAsRead,
     notifications,
     refresh: () => refresh(),
     unreadCount: notifications.filter((notification) => !isNotificationRead(notification)).length,
-  }), [error, loading, markAsRead, notifications, refresh])
+  }), [error, loading, markAllAsRead, markAsRead, notifications, refresh])
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>
 }

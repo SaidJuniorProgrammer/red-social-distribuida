@@ -80,3 +80,20 @@ it('muestra los tipos, navega a su destino y marca como leída al abrir', async 
   fireEvent.click(links[0])
   await waitFor(() => expect(markRead).toHaveBeenCalledWith('/notificaciones/n-follow/leer'))
 })
+
+it('marca todas como leídas desde la cabecera y oculta el botón', async () => {
+  vi.stubGlobal('Notification', { permission: 'denied' })
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { notificaciones: [
+    { idNotificacion: 'a', tipo: 'LIKE', actor: 'ana', mensaje: 'Uno', referencia: '/feed', fecha: '2026-10-02T10:00:00Z', leida: false },
+    { idNotificacion: 'b', tipo: 'POST', actor: 'said', mensaje: 'Dos', referencia: '/feed', fecha: '2026-10-01T10:00:00Z', leida: false },
+  ] } })
+  const markAll = vi.spyOn(api, 'put').mockResolvedValue({ data: {} })
+  renderNotifications()
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Marcar todas como leídas' }))
+
+  await waitFor(() => expect(markAll).toHaveBeenCalledWith('/notificaciones/leer-todas'))
+  await waitFor(() => expect(
+    screen.queryByRole('button', { name: 'Marcar todas como leídas' }),
+  ).not.toBeInTheDocument())
+})

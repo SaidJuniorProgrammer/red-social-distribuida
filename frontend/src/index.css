@@ -287,6 +287,7 @@ a { color: inherit; }
 .post-card__header a { text-decoration: none; }
 .post-card__header a:hover { text-decoration: underline; }
 .notification-inbox { margin-block: 1.5rem; padding: 1.25rem; background: #fff; border: 1px solid #e2d9ee; border-radius: 1rem; }
+.notification-inbox__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .notification-inbox ul { display: grid; gap: .75rem; padding: 0; list-style: none; }
 .notification-inbox__item { display: flex; align-items: center; gap: .85rem; padding: .75rem .85rem; border: 1px solid #ece4f7; border-radius: .9rem; overflow-wrap: anywhere; }
 .notification-inbox__unread { border-color: #d9c7f3; background: #f7f2ff; }

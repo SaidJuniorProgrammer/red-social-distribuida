@@ -4,6 +4,7 @@ import {
   disconnectUserFromPush,
   getCurrentPushSubscription,
   isWebPushSupported,
+  markAllNotificationsAsRead,
   markNotificationAsRead,
   subscribeUserToPush,
   syncGrantedPushSubscription,
@@ -177,5 +178,13 @@ describe('suscripción Web Push', () => {
     await markNotificationAsRead('notificación 1')
 
     expect(update).toHaveBeenCalledWith('/notificaciones/notificaci%C3%B3n%201/leer')
+  })
+
+  it('marca todas las notificaciones como leídas', async () => {
+    const update = vi.spyOn(api, 'put').mockResolvedValue({ data: {} })
+
+    await markAllNotificationsAsRead()
+
+    expect(update).toHaveBeenCalledWith('/notificaciones/leer-todas')
   })
 })
