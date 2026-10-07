@@ -60,11 +60,16 @@ function safeInternalDestination(value) {
     : null
 }
 
+// El backend usa /mensajes como referencia de los avisos de chat; en el frontend la ruta es /chat.
+function isBackendChatReference(destination) {
+  return destination?.split(/[?#]/)[0] === '/mensajes'
+}
+
 export function getNotificationDestination(notification) {
   const suppliedDestination = safeInternalDestination(
     notification.referencia ?? notification.url_interna ?? notification.url,
   )
-  if (suppliedDestination) return suppliedDestination
+  if (suppliedDestination && !isBackendChatReference(suppliedDestination)) return suppliedDestination
 
   const actor = encodeURIComponent(getNotificationActor(notification))
   switch (getNotificationType(notification)) {

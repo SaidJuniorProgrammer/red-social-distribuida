@@ -22,6 +22,10 @@ describe('presentación de notificaciones', () => {
     expect(getNotificationDestination({ referencia: '/perfil/carlos', tipo: 'LIKE' })).toBe('/perfil/carlos')
   })
 
+  it('traduce la referencia /mensajes del backend a la conversación del frontend', () => {
+    expect(getNotificationDestination({ referencia: '/mensajes', tipo: 'MENSAJE', actor: 'ana' })).toBe('/chat?usuario=ana')
+  })
+
   it('acepta solo destinos internos y descarta URLs externas', () => {
     expect(getNotificationDestination({ referencia: 'https://externo.example', tipo: 'LIKE' })).toBe('/feed')
     expect(getNotificationDestination({ referencia: '//evil.example', tipo: 'MENSAJE', actor: 'ana' })).toBe('/chat?usuario=ana')

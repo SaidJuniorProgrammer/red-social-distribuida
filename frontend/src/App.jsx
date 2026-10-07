@@ -29,6 +29,7 @@ function App() {
         <Route path="/explorar" element={<ExplorePage />} />
         <Route path="/notificaciones" element={<NotificationsPage />} />
         <Route path="/chat" element={<ChatPage />} />
+        <Route path="/mensajes" element={<Navigate to="/chat" replace />} />
         <Route
           path="/guardados"
           element={(
