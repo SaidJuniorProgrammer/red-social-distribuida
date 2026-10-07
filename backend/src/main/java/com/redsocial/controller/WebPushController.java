@@ -13,7 +13,6 @@ import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
@@ -89,22 +88,6 @@ public class WebPushController {
         return Response.ok(new ApiMessageResponse("Suscripción Web Push eliminada")).build();
     }
 
-    @GET
-    @Path("/notificaciones/{usuario}")
-    @Authenticated
-    public Response obtenerNotificaciones(@PathParam("usuario") String usuario) {
-        if (!esUsuarioAutenticado(usuario)) {
-            return accesoDenegado();
-        }
-
-        return Response.ok(Map.of("notificaciones", webPushService.obtenerNotificacionesDeUsuario(usuario))).build();
-    }
-
-    private boolean esUsuarioAutenticado(String usuario) {
-        return usuario != null
-                && usuario.trim().equals(securityIdentity.getPrincipal().getName());
-    }
-
     private boolean suscripcionInvalida(PushSubscriptionRequest request) {
         if (request == null || request.endpoint() == null || request.endpoint().isBlank()
                 || request.keys() == null) {
@@ -114,15 +97,5 @@ public class WebPushController {
         String p256dh = request.keys().get("p256dh");
         String auth = request.keys().get("auth");
         return p256dh == null || p256dh.isBlank() || auth == null || auth.isBlank();
-    }
-
-    private Response accesoDenegado() {
-        return Response.status(Response.Status.FORBIDDEN)
-                .entity(new ApiErrorResponse(
-                        "FORBIDDEN",
-                        "usuario",
-                        "No puedes administrar las notificaciones de otra cuenta."
-                ))
-                .build();
     }
 }

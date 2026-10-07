@@ -365,27 +365,18 @@ class WebPushIntegrationTest {
         .then()
                 .statusCode(201);
 
-        // 5. Verificar que 'anthony' (con suscripción) y 'estalin' (sin suscripción previa) recibieron el evento Push
-        given()
-                .header("Authorization", "Bearer " + tokenAnthony)
-        .when()
-                .get("/api/push/notificaciones/anthony")
-        .then()
-                .statusCode(200)
-                .body(containsString("Publicacion que dispara Web Push"))
-                .body(containsString("webpush://pendiente/anthony"));
-
-        given()
-                .header("Authorization", "Bearer " + tokenEstalin)
-        .when()
-                .get("/api/push/notificaciones/estalin")
-        .then()
-                .statusCode(200)
-                .body(containsString("Publicacion que dispara Web Push"))
-                .body(containsString(subAnthony.endpoint()));
+        // 5. Verificar que los endpoints correctos recibieron el evento Push
         assertEquals(2, endpointsEntregados.size());
         assertTrue(endpointsEntregados.contains(subAnthony.endpoint()));
         assertTrue(endpointsEntregados.contains(segundoNavegadorEstalin.endpoint()));
+
+        // Verificar que la nueva bandeja de notificaciones responde OK (200)
+        given()
+                .header("Authorization", "Bearer " + tokenAnthony)
+        .when()
+                .get("/api/notificaciones")
+        .then()
+                .statusCode(200);
 
         // 6. Eliminar suscripción existente (200) e inexistente (404)
         given()
@@ -411,13 +402,6 @@ class WebPushIntegrationTest {
                 "Solo debe llegar al navegador que permanece suscrito"
         );
         assertEquals(List.of(segundoNavegadorEstalin.endpoint()), endpointsEntregados);
-
-        given()
-                .header("Authorization", "Bearer " + tokenAnthony)
-        .when()
-                .get("/api/push/notificaciones/estalin")
-        .then()
-                .statusCode(403);
     }
 
     private String tokenPara(String username) {

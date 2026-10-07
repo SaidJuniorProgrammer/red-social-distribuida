@@ -8,6 +8,7 @@ import com.redsocial.dto.SugerenciaResponse;
 import com.redsocial.dto.UsuarioResumenResponse;
 import com.redsocial.repository.GrafoSocialRepository;
 import com.redsocial.repository.UsuarioRepository;
+import com.redsocial.service.WebPushService;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
@@ -43,6 +44,9 @@ public class GrafoSocialController {
 
     @Inject
     SecurityIdentity securityIdentity;
+
+    @Inject
+    WebPushService webPushService;
 
     /**
      * Busca usuarios registrados cuyo nombre de usuario coincida con el término indicado.
@@ -189,6 +193,9 @@ public class GrafoSocialController {
                         .entity(new ApiErrorResponse("USER_NOT_FOUND", null, "Uno de los usuarios no existe."))
                         .build();
             }
+
+            // --- DISPARADOR DE NOTIFICACIÓN PUSH ---
+            webPushService.notificarNuevoSeguidor(miId.trim(), idDestino.trim());
 
             return Response.ok(new GrafoStatusResponse(STATUS_SUCCESS, "Relación [:SIGUE] creada exitosamente")).build();
         } catch (Exception e) {
