@@ -44,12 +44,17 @@ function AppSidebar() {
             </>
           )
 
+          const hasUnread = item.to === '/notificaciones' && unreadCount > 0
+          const ariaLabel = hasUnread
+            ? `${item.label} (${unreadCount > 99 ? '99+' : unreadCount} sin leer)`
+            : item.label
+
           return (
             <NavLink
               className={({ isActive }) => (
                 isActive ? 'messages-sidebar__active' : undefined
               )}
-              aria-label={item.label}
+              aria-label={ariaLabel}
               end={item.to === '/feed'}
               key={item.label}
               ref={location.pathname === item.to ? activeLinkRef : null}

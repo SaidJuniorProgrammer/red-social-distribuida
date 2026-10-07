@@ -1,3 +1,13 @@
+// El backend envia /mensajes como referencia de los avisos de chat; en el frontend la ruta es /chat.
+function resolveNotificationDestination(notification) {
+  const supplied = notification.referencia ?? notification.url_interna ?? notification.url ?? '/feed'
+  if (String(supplied).split(/[?#]/)[0] === '/mensajes') {
+    const actor = notification.actor ?? notification.autor
+    return actor ? `/chat?usuario=${encodeURIComponent(actor)}` : '/chat'
+  }
+  return supplied
+}
+
 self.addEventListener('push', (event) => {
   let notification = {}
 
@@ -10,7 +20,7 @@ self.addEventListener('push', (event) => {
   }
 
   const title = notification.titulo ?? 'Nueva actividad en Pachyweb'
-  const destination = notification.referencia ?? notification.url_interna ?? notification.url ?? '/feed'
+  const destination = resolveNotificationDestination(notification)
   const notificationId = notification.idNotificacion ?? notification.id_notificacion
   const options = {
     body: notification.mensaje ?? 'Hay una nueva publicación en tu red.',

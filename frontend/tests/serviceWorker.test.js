@@ -94,6 +94,35 @@ describe('Service Worker de notificaciones', () => {
     )
   })
 
+  it('traduce la referencia /mensajes del backend a la conversación del actor', async () => {
+    const { listeners, showNotification } = createWorker()
+    let pendingTask
+
+    listeners.get('push')({
+      data: {
+        json: () => ({
+          idNotificacion: 'n-chat',
+          tipo: 'MENSAJE',
+          actor: 'ana',
+          titulo: 'Nuevo mensaje',
+          mensaje: 'Hola',
+          referencia: '/mensajes',
+        }),
+      },
+      waitUntil: (task) => {
+        pendingTask = task
+      },
+    })
+    await pendingTask
+
+    expect(showNotification).toHaveBeenCalledWith(
+      'Nuevo mensaje',
+      expect.objectContaining({
+        data: { url: '/chat?usuario=ana' },
+      }),
+    )
+  })
+
   it('evita abrir destinos externos desde una notificación', async () => {
     const { listeners, openWindow } = createWorker()
     const close = vi.fn()

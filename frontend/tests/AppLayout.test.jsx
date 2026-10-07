@@ -44,4 +44,7 @@ it('muestra en la navegación la cantidad de notificaciones no leídas', async (
 
   expect(await screen.findByText('1')).toHaveClass('notifications-badge')
   expect(container.querySelectorAll('.notifications-badge')).toHaveLength(1)
+  expect(
+    await screen.findByRole('link', { name: 'Notificaciones (1 sin leer)' }),
+  ).toBeInTheDocument()
 })

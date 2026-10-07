@@ -94,3 +94,16 @@ export function getNotificationTypeLabel(notification) {
       return 'Nueva publicación'
   }
 }
+
+export function getNotificationIcon(notification) {
+  switch (getNotificationType(notification)) {
+    case NOTIFICATION_TYPES.follow:
+      return '👤'
+    case NOTIFICATION_TYPES.message:
+      return '✉️'
+    case NOTIFICATION_TYPES.like:
+      return '❤️'
+    default:
+      return '🔔'
+  }
+}

@@ -5,6 +5,7 @@ import { formatPublishedAt } from '../utils/dateTime.js'
 import {
   getNotificationActor,
   getNotificationDestination,
+  getNotificationIcon,
   getNotificationKey,
   getNotificationMessage,
   getNotificationTimestamp,
@@ -34,13 +35,22 @@ function NotificationsPage() {
             const timestamp = getNotificationTimestamp(item)
 
             return (
-              <li className={isNotificationRead(item) ? '' : 'notification-inbox__unread'}
+              <li className={`notification-inbox__item${isNotificationRead(item) ? '' : ' notification-inbox__unread'}`}
                 key={getNotificationKey(item)}>
-                <span className="notification-inbox__type">{getNotificationTypeLabel(item)}</span>
-                {actor && <strong>@{actor}</strong>}
-                <p>{getNotificationMessage(item)}</p>
-                {timestamp && <time dateTime={timestamp}>{formatPublishedAt(timestamp)}</time>}
-                <Link to={getNotificationDestination(item)} onClick={() => void markAsRead(item)}>
+                <span className="notification-inbox__icon" aria-hidden="true">{getNotificationIcon(item)}</span>
+                <div className="notification-inbox__body">
+                  <div className="notification-inbox__heading">
+                    {actor && <strong>@{actor}</strong>}
+                    <span className="notification-inbox__type">{getNotificationTypeLabel(item)}</span>
+                  </div>
+                  <p>{getNotificationMessage(item)}</p>
+                  {timestamp && <time dateTime={timestamp}>{formatPublishedAt(timestamp)}</time>}
+                </div>
+                <Link
+                  className="primary-button notification-inbox__open"
+                  to={getNotificationDestination(item)}
+                  onClick={() => void markAsRead(item)}
+                >
                   Abrir notificación
                 </Link>
               </li>

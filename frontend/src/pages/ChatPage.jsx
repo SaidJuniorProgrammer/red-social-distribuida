@@ -42,6 +42,17 @@ function ChatPage() {
   const recipientInputRef = useRef(null)
   const messagesViewportRef = useRef(null)
   const activeRecipient = selectedRecipient
+
+  // Sincroniza la conversación cuando la URL (?usuario=) cambia sin desmontar la página
+  // (p. ej. al abrir otra notificación de mensaje). Se ajusta durante el render, el patrón
+  // recomendado por React para derivar estado de un valor cambiante, y respeta la búsqueda
+  // manual mientras la URL no cambie.
+  const [syncedRecipient, setSyncedRecipient] = useState(requestedRecipient)
+  if (requestedRecipient && requestedRecipient !== syncedRecipient) {
+    setSyncedRecipient(requestedRecipient)
+    setRecipientQuery(requestedRecipient)
+    setSelectedRecipient(requestedRecipient)
+  }
   const isConnected = status === CHAT_CONNECTION_STATUS.connected
   const statusLabel = statusLabels[status] ?? 'Sin conexión'
   const newestMessage = messages.at(-1)
