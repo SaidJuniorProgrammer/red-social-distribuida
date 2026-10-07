@@ -89,7 +89,8 @@ public class GrafoSocialController {
     @Path("/feed/{mi_id}")
     public Response obtenerFeed(@PathParam("mi_id") String miId) {
         try {
-            List<FeedItemResponse> feed = grafoSocialRepository.obtenerFeed(miId.trim());
+            String lector = securityIdentity.isAnonymous() ? "" : securityIdentity.getPrincipal().getName();
+            List<FeedItemResponse> feed = grafoSocialRepository.obtenerFeed(miId.trim(), lector);
             return Response.ok(new FeedResponse(feed)).build();
         } catch (Exception e) {
             LOG.error("Error al obtener el feed", e);

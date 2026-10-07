@@ -72,7 +72,7 @@ function CreatePostPage() {
     setError('')
     try {
       await createPost({ image, text: normalizedText })
-      navigate('/feed', {
+      void navigate('/feed', {
         replace: true,
         state: { publicationCreated: true },
       })

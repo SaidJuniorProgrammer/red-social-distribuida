@@ -20,6 +20,7 @@ import java.util.List;
 public class GrafoSocialRepository {
 
     private static final String PARAM_MI_ID = "miId";
+    private static final String PARAM_LECTOR = "lector";
     private static final String PARAM_ID_DESTINO = "idDestino";
     private static final String PARAM_ID_POST = "idPost";
     private static final String COL_AUTOR = "autor";
@@ -48,10 +49,11 @@ public class GrafoSocialRepository {
     /**
      * Obtiene las publicaciones públicas ordenadas por fecha descendente.
      *
-     * @param miId identificador o username del usuario
+     * @param miId   identificador o username del usuario que solicita el feed
+     * @param lector cuenta autenticada que consulta el feed; vacío si no hay sesión
      * @return lista de publicaciones del feed
      */
-    public List<FeedItemResponse> obtenerFeed(String miId) {
+    public List<FeedItemResponse> obtenerFeed(String miId, String lector) {
         String query = """
             MATCH (yo:Usuario)
             WHERE yo.id_usuario = $miId OR yo.username = $miId OR yo.id = $miId
@@ -68,14 +70,13 @@ public class GrafoSocialRepository {
                    toString(p.fecha_publicacion) AS fecha_publicacion,
                    reacciones,
                    p.media_tipo AS media_tipo,
-                   EXISTS { MATCH (lector:Usuario)-[:REACCIONA {tipo_reaccion: 'LIKE'}]->(p)
-                            WHERE lector.username = $miId OR lector.id_usuario = $miId OR lector.id = $miId } AS liked
+                   EXISTS { MATCH (:Usuario {username: $lector})-[:REACCIONA {tipo_reaccion: 'LIKE'}]->(p) } AS liked
             ORDER BY p.fecha_publicacion DESC
             LIMIT 20
             """;
 
         try (var session = driver.session()) {
-            return session.executeRead(tx -> mapearPosts(tx.run(query, Values.parameters(PARAM_MI_ID, miId))));
+            return session.executeRead(tx -> mapearPosts(tx.run(query, Values.parameters(PARAM_MI_ID, miId, PARAM_LECTOR, lector))));
         }
     }
 
@@ -105,7 +106,7 @@ public class GrafoSocialRepository {
             """;
 
         try (var session = driver.session()) {
-            return session.executeRead(tx -> mapearPosts(tx.run(query, Values.parameters(PARAM_MI_ID, miId, "lector", lector))));
+            return session.executeRead(tx -> mapearPosts(tx.run(query, Values.parameters(PARAM_MI_ID, miId, PARAM_LECTOR, lector))));
         }
     }
 

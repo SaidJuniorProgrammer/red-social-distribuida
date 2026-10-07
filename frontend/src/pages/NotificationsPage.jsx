@@ -30,7 +30,7 @@ function NotificationsPage() {
         }
       }
     }
-    refresh()
+    void refresh()
     return () => {
       controller.abort()
       window.clearTimeout(timer)
