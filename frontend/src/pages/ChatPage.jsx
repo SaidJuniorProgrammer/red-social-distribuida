@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import BrandMark from '../components/BrandMark.jsx'
 import useAuth from '../hooks/useAuth.js'
 import useChat from '../hooks/useChat.js'
@@ -26,10 +27,12 @@ function formatMessageTime(timestamp) {
 }
 
 function ChatPage() {
+  const [searchParams] = useSearchParams()
+  const requestedRecipient = searchParams.get('usuario')?.trim() ?? ''
   const { user } = useAuth()
   const { connectionError, deliveryError, messages, sendMessage, status } = useChat()
-  const [recipientQuery, setRecipientQuery] = useState('')
-  const [selectedRecipient, setSelectedRecipient] = useState('')
+  const [recipientQuery, setRecipientQuery] = useState(requestedRecipient)
+  const [selectedRecipient, setSelectedRecipient] = useState(requestedRecipient)
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState('')

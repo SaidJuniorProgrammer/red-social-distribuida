@@ -2,12 +2,13 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, expect, it, vi } from 'vitest'
 import AuthContext from '../src/context/authContext.js'
+import NotificationsProvider from '../src/context/NotificationsProvider.jsx'
 import NotificationsPage from '../src/pages/NotificationsPage.jsx'
 import api from '../src/services/api.js'
 
 function renderNotifications() {
   return render(<MemoryRouter><AuthContext.Provider value={{ user: { username: 'oscar' } }}>
-    <NotificationsPage />
+    <NotificationsProvider><NotificationsPage /></NotificationsProvider>
   </AuthContext.Provider></MemoryRouter>)
 }
 
@@ -16,16 +17,16 @@ afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(
 it('muestra la actividad sin permiso de notificaciones, ordenada de reciente a antigua', async () => {
   vi.stubGlobal('Notification', { permission: 'denied' })
   vi.spyOn(api, 'get').mockResolvedValue({ data: { notificaciones: [
-    { id_post: 'p1', autor: 'ana', titulo: 'Nueva publicación', mensaje: 'Antes', timestamp: '2026-10-01T10:00:00Z' },
-    { id_post: 'p2', autor: 'said', titulo: 'Nuevo Like', mensaje: 'Después', timestamp: '2026-10-02T10:00:00Z' },
+    { idNotificacion: 'n1', tipo: 'POST', actor: 'ana', mensaje: 'Antes', referencia: '/feed', fecha: '2026-10-01T10:00:00Z', leida: false },
+    { idNotificacion: 'n2', tipo: 'LIKE', actor: 'said', mensaje: 'Después', referencia: '/feed', fecha: '2026-10-02T10:00:00Z', leida: false },
   ] } })
   renderNotifications()
   await screen.findByText('Después')
   expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
     expect.stringContaining('Después'), expect.stringContaining('Antes'),
   ])
-  expect(screen.getByRole('link', { name: 'Ver perfil de @said' })).toHaveAttribute('href', '/perfil/said')
-  expect(api.get).toHaveBeenCalledWith('/push/notificaciones/oscar', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+  expect(screen.getAllByRole('link', { name: 'Abrir notificación' })[0]).toHaveAttribute('href', '/feed')
+  expect(api.get).toHaveBeenCalledWith('/notificaciones', expect.objectContaining({ signal: expect.any(AbortSignal) }))
 })
 
 it('permite reintentar una carga fallida y muestra una bandeja vacía', async () => {
@@ -58,4 +59,24 @@ it('ignora respuestas que llegan después de salir de la pantalla', async () => 
   view.unmount()
   await act(async () => resolve({ data: { notificaciones: [] } }))
   await waitFor(() => expect(screen.queryByText('No tienes notificaciones por ahora.')).not.toBeInTheDocument())
+})
+
+it('muestra los tipos, navega a su destino y marca como leída al abrir', async () => {
+  vi.stubGlobal('Notification', { permission: 'denied' })
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { notificaciones: [
+    { idNotificacion: 'n-follow', tipo: 'FOLLOW', actor: 'ana', mensaje: 'Ana te siguió', referencia: '/perfil/ana', fecha: '2026-10-03T10:00:00Z', leida: false },
+    { idNotificacion: 'n-message', tipo: 'MENSAJE', actor: 'said', mensaje: 'Hola', referencia: '/chat?usuario=said', fecha: '2026-10-02T10:00:00Z', leida: false },
+    { idNotificacion: 'n-like', tipo: 'LIKE', actor: 'maria', mensaje: 'Le gustó tu publicación', referencia: '/feed', fecha: '2026-10-01T10:00:00Z', leida: true },
+  ] } })
+  const markRead = vi.spyOn(api, 'put').mockResolvedValue({ data: {} })
+  renderNotifications()
+
+  expect(await screen.findByText('Ana te siguió')).toBeInTheDocument()
+  const links = screen.getAllByRole('link', { name: 'Abrir notificación' })
+  expect(links[0]).toHaveAttribute('href', '/perfil/ana')
+  expect(links[1]).toHaveAttribute('href', '/chat?usuario=said')
+  expect(links[2]).toHaveAttribute('href', '/feed')
+
+  fireEvent.click(links[0])
+  await waitFor(() => expect(markRead).toHaveBeenCalledWith('/notificaciones/n-follow/leer'))
 })

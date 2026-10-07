@@ -142,6 +142,7 @@ a { color: inherit; }
 .messages-sidebar__brand > span:last-child { color: #8b8297; font: 500 .62rem monospace; letter-spacing: .04em; }
 .messages-sidebar nav { display: grid; gap: .28rem; }
 .messages-sidebar nav a, .messages-sidebar__item { min-height: 2.7rem; display: flex; align-items: center; gap: .8rem; padding: .65rem .8rem; border-radius: .55rem; color: #6b6475; font-size: .84rem; font-weight: 500; text-decoration: none; transition: color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease; }
+.notifications-badge { min-width: 1.35rem; margin-left: auto; padding: .15rem .4rem; border-radius: 999px; color: #fff; background: #7c3aed; font-size: .65rem; font-weight: 800; text-align: center; }
 .messages-sidebar nav a:hover { color: #5c279f; background: #f5f0fc; transform: translateX(.15rem); }
 .messages-sidebar__icon { width: 1.3rem; color: #706778; text-align: center; font-size: 1rem; }
 .messages-sidebar__active { color: #fff !important; background: linear-gradient(105deg, #6e2fc9, #8d49e4) !important; box-shadow: 0 .45rem 1.1rem rgb(111 49 207 / 18%); }
@@ -288,6 +289,8 @@ a { color: inherit; }
 .notification-inbox { margin-block: 1.5rem; padding: 1.25rem; background: #fff; border: 1px solid #e2d9ee; border-radius: 1rem; }
 .notification-inbox ul { display: grid; gap: 1rem; padding: 0; list-style: none; }
 .notification-inbox li { display: grid; gap: .5rem; padding-bottom: 1rem; border-bottom: 1px solid #e2d9ee; overflow-wrap: anywhere; }
+.notification-inbox__unread { padding: .85rem; border-radius: .75rem; background: #f7f2ff; }
+.notification-inbox__type { width: fit-content; padding: .2rem .45rem; border-radius: 999px; color: #7137cf; background: #eee6fb; font-size: .65rem; font-weight: 800; }
 .notification-inbox li p { margin: 0; }
 .notification-inbox time, .notification-inbox__note { color: #746b80; font-size: .8rem; }
 .notification-inbox a { color: #7434cf; }

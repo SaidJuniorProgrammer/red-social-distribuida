@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import api from '../src/services/api.js'
 import {
+  disconnectUserFromPush,
   getCurrentPushSubscription,
   isWebPushSupported,
+  markNotificationAsRead,
   subscribeUserToPush,
+  syncGrantedPushSubscription,
   urlBase64ToUint8Array,
 } from '../src/services/webpush.js'
 
@@ -142,5 +145,37 @@ describe('suscripción Web Push', () => {
       'Debes permitir las notificaciones',
     )
     expect(getPublicKey).not.toHaveBeenCalled()
+  })
+
+  it('no solicita permiso al sincronizar una sesión que todavía no fue autorizada', async () => {
+    installPushMocks({ permission: 'default' })
+
+    await expect(syncGrantedPushSubscription()).resolves.toBeNull()
+    expect(Notification.requestPermission).not.toHaveBeenCalled()
+  })
+
+  it('desconecta el navegador al cerrar sesión aunque falle el backend', async () => {
+    const subscription = {
+      endpoint: 'https://push.example/oscar',
+      unsubscribe: vi.fn().mockResolvedValue(true),
+    }
+    installPushMocks({ subscription })
+    const remove = vi.spyOn(api, 'delete').mockRejectedValue(new Error('Sin conexión'))
+
+    await disconnectUserFromPush('jwt-activo')
+
+    expect(remove).toHaveBeenCalledWith('/push/subscribe', {
+      headers: { Authorization: 'Bearer jwt-activo' },
+      params: { endpoint: subscription.endpoint },
+    })
+    expect(subscription.unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('marca una notificación persistente como leída', async () => {
+    const update = vi.spyOn(api, 'put').mockResolvedValue({ data: {} })
+
+    await markNotificationAsRead('notificación 1')
+
+    expect(update).toHaveBeenCalledWith('/notificaciones/notificaci%C3%B3n%201/leer')
   })
 })

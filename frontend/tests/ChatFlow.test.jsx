@@ -11,6 +11,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from '../src/App.jsx'
 import AuthProvider from '../src/context/AuthProvider.jsx'
 import ChatProvider from '../src/context/ChatProvider.jsx'
+import { writeSession } from '../src/context/authStorage.js'
 import api from '../src/services/api.js'
 
 class MockWebSocket {
@@ -54,6 +55,22 @@ class MockWebSocket {
 function renderApp() {
   return render(
     <MemoryRouter initialEntries={['/login']}>
+      <AuthProvider>
+        <ChatProvider>
+          <App />
+        </ChatProvider>
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+}
+
+function renderAuthenticatedApp(path) {
+  writeSession({
+    token: 'jwt-prueba',
+    user: { username: 'oscar' },
+  })
+  return render(
+    <MemoryRouter initialEntries={[path]}>
       <AuthProvider>
         <ChatProvider>
           <App />
@@ -285,4 +302,16 @@ it('conserva el error cuando el navegador cierra la conexión', async () => {
     'No se pudo mantener la conexión del chat.',
   )
   fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+})
+
+it('abre desde una notificación la conversación indicada en la URL', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { notificaciones: [] } })
+  renderAuthenticatedApp('/chat?usuario=said')
+
+  await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1))
+  await act(async () => MockWebSocket.instances[0].open())
+
+  expect(screen.getByLabelText('Buscar usuario registrado')).toHaveValue('said')
+  expect(screen.getByLabelText('Mensaje')).toBeEnabled()
+  expect(screen.getByText('@said', { selector: '.chat-room__identity span' })).toBeInTheDocument()
 })

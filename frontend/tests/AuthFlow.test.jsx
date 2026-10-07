@@ -42,10 +42,40 @@ function fillRegister() {
   })
 }
 
+function installGrantedPushSubscription() {
+  const subscription = {
+    endpoint: 'https://push.example/oscar',
+    options: { applicationServerKey: new Uint8Array([1, 2, 3, 4]) },
+    toJSON: () => ({ keys: { p256dh: 'publica', auth: 'secreta' } }),
+    unsubscribe: vi.fn().mockResolvedValue(true),
+  }
+  const registration = {
+    pushManager: {
+      getSubscription: vi.fn().mockResolvedValue(subscription),
+      subscribe: vi.fn(),
+    },
+  }
+  vi.stubGlobal('Notification', { permission: 'granted' })
+  vi.stubGlobal('PushManager', class PushManager {})
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: {
+      ready: Promise.resolve(registration),
+      register: vi.fn().mockResolvedValue(registration),
+    },
+  })
+  return subscription
+}
+
 afterEach(() => {
   localStorage.clear()
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: undefined,
+  })
 })
 
 describe('inicio de sesión', () => {
@@ -118,6 +148,35 @@ describe('inicio de sesión', () => {
     })
 
     expect(response.data).toBe('Bearer jwt-activo')
+  })
+
+  it('sincroniza la suscripción concedida y la desconecta al cerrar sesión', async () => {
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ token: 'jwt-activo', user: { username: 'oscar' } }),
+    )
+    const subscription = installGrantedPushSubscription()
+    vi.spyOn(api, 'get').mockImplementation((url) => Promise.resolve({
+      data: url === '/push/vapid-public-key'
+        ? { publicKey: 'AQIDBA' }
+        : { feed: [], notificaciones: [] },
+    }))
+    const register = vi.spyOn(api, 'post').mockResolvedValue({ data: {} })
+    const remove = vi.spyOn(api, 'delete').mockResolvedValue({ data: {} })
+    renderApp('/feed')
+
+    await waitFor(() => expect(register).toHaveBeenCalledWith('/push/subscribe', {
+      endpoint: subscription.endpoint,
+      keys: { p256dh: 'publica', auth: 'secreta' },
+    }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    await waitFor(() => expect(remove).toHaveBeenCalledWith('/push/subscribe', {
+      headers: { Authorization: 'Bearer jwt-activo' },
+      params: { endpoint: subscription.endpoint },
+    }))
+    expect(subscription.unsubscribe).toHaveBeenCalledOnce()
   })
 
   it('cierra la sesión cuando el JWT vence mientras la aplicación está abierta', async () => {

@@ -33,10 +33,11 @@ describe('Service Worker de notificaciones', () => {
     listeners.get('push')({
       data: {
         json: () => ({
-          id_post: 'post-15',
+          idNotificacion: 'POST_said_post-15',
+          tipo: 'POST',
           mensaje: 'Said publicó una actualización',
           titulo: 'Nueva publicación',
-          url: '/feed',
+          referencia: '/feed',
         }),
       },
       waitUntil: (task) => {
@@ -48,7 +49,7 @@ describe('Service Worker de notificaciones', () => {
     expect(showNotification).toHaveBeenCalledWith('Nueva publicación', {
       body: 'Said publicó una actualización',
       data: { url: '/feed' },
-      tag: 'post-post-15',
+      tag: 'notification-POST_said_post-15',
     })
   })
 
@@ -68,6 +69,27 @@ describe('Service Worker de notificaciones', () => {
       'Nueva actividad en Pachyweb',
       expect.objectContaining({
         body: 'Hay una nueva publicación en tu red.',
+      }),
+    )
+  })
+
+  it('usa el identificador persistente y la referencia interna de la notificación', async () => {
+    const { listeners, showNotification } = createWorker()
+    let pendingTask
+
+    listeners.get('push')({
+      data: { json: () => ({ idNotificacion: 'n-44', titulo: 'Nuevo mensaje', referencia: '/chat?usuario=ana' }) },
+      waitUntil: (task) => {
+        pendingTask = task
+      },
+    })
+    await pendingTask
+
+    expect(showNotification).toHaveBeenCalledWith(
+      'Nuevo mensaje',
+      expect.objectContaining({
+        tag: 'notification-n-44',
+        data: { url: '/chat?usuario=ana' },
       }),
     )
   })

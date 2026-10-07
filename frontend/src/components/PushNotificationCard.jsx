@@ -87,7 +87,7 @@ function PushNotificationCard() {
         <p className="push-card__eyebrow">Actividad de tu red</p>
         <h2 id="push-title">Alertas del navegador</h2>
         <p>
-          Recibe una alerta de publicaciones y likes,
+          Recibe una alerta de la actividad de tu cuenta,
           incluso si estás en otra pestaña.
         </p>
         {isActive && <p className="push-card__success" role="status">Notificaciones activadas</p>}

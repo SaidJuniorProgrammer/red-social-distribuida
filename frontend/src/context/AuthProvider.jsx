@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AuthContext from './authContext.js'
 import {
   clearSession,
@@ -8,11 +8,18 @@ import {
   writeSession,
 } from './authStorage.js'
 import { loginUser, registerUser } from '../services/authService.js'
+import { disconnectUserFromPush, syncGrantedPushSubscription } from '../services/webpush.js'
 
 const MAX_TIMEOUT_DELAY = 2_147_483_647
 
 function AuthProvider({ children }) {
   const [session, setSession] = useState(readSession)
+
+  const logout = useCallback(() => {
+    void disconnectUserFromPush(session?.token).catch(() => undefined)
+    setSession(null)
+    clearSession()
+  }, [session?.token])
 
   useEffect(() => subscribeToSessionChanges(setSession), [])
 
@@ -26,7 +33,7 @@ function AuthProvider({ children }) {
       const remainingTime = expiration - Date.now()
 
       if (remainingTime <= 0) {
-        clearSession()
+        void logout()
         return
       }
 
@@ -38,7 +45,12 @@ function AuthProvider({ children }) {
 
     expireSessionWhenNeeded()
     return () => window.clearTimeout(timeoutId)
-  }, [session])
+  }, [logout, session])
+
+  useEffect(() => {
+    if (!session?.token) return
+    void syncGrantedPushSubscription().catch(() => undefined)
+  }, [session?.token, session?.user?.username])
 
   const login = async (credentials) => {
     const { token } = await loginUser(credentials)
@@ -54,11 +66,6 @@ function AuthProvider({ children }) {
 
   const register = (userData) => registerUser(userData)
 
-  const logout = () => {
-    setSession(null)
-    clearSession()
-  }
-
   const value = useMemo(
     () => ({
       isAuthenticated: Boolean(session?.token),
@@ -68,7 +75,7 @@ function AuthProvider({ children }) {
       token: session?.token ?? null,
       user: session?.user ?? null,
     }),
-    [session],
+    [logout, session],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
