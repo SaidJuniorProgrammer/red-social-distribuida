@@ -1,0 +1,6 @@
+{
+  "kty": "oct",
+  "kid": "pachyweb-key",
+  "alg": "HS256",
+  "k": "zHEDT1ldsRSekYxeYvvWWDmyO4dkDEk6tVszEANKdfs"
+}
