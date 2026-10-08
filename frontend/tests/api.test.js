@@ -9,8 +9,8 @@ describe('cliente HTTP', () => {
     vi.resetModules()
   })
 
-  it('utiliza la URL local cuando no existe una variable de entorno', () => {
-    expect(api.defaults.baseURL).toBe('http://localhost:8080/api')
+  it('utiliza la URL por defecto de produccion cuando no existe una variable de entorno', () => {
+    expect(api.defaults.baseURL).toBe('https://pachyweb-backend.onrender.com/api')
   })
 
   it('respeta la URL configurada mediante el entorno', async () => {
