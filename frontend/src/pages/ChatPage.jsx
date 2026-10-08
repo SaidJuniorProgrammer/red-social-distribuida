@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import BrandMark from '../components/BrandMark.jsx'
 import useAuth from '../hooks/useAuth.js'
 import useChat from '../hooks/useChat.js'
@@ -26,10 +27,12 @@ function formatMessageTime(timestamp) {
 }
 
 function ChatPage() {
+  const [searchParams] = useSearchParams()
+  const requestedRecipient = searchParams.get('usuario')?.trim() ?? ''
   const { user } = useAuth()
   const { connectionError, deliveryError, messages, sendMessage, status } = useChat()
-  const [recipientQuery, setRecipientQuery] = useState('')
-  const [selectedRecipient, setSelectedRecipient] = useState('')
+  const [recipientQuery, setRecipientQuery] = useState(requestedRecipient)
+  const [selectedRecipient, setSelectedRecipient] = useState(requestedRecipient)
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
@@ -39,6 +42,17 @@ function ChatPage() {
   const recipientInputRef = useRef(null)
   const messagesViewportRef = useRef(null)
   const activeRecipient = selectedRecipient
+
+  // Sincroniza la conversación cuando la URL (?usuario=) cambia sin desmontar la página
+  // (p. ej. al abrir otra notificación de mensaje). Se ajusta durante el render, el patrón
+  // recomendado por React para derivar estado de un valor cambiante, y respeta la búsqueda
+  // manual mientras la URL no cambie.
+  const [syncedRecipient, setSyncedRecipient] = useState(requestedRecipient)
+  if (requestedRecipient && requestedRecipient !== syncedRecipient) {
+    setSyncedRecipient(requestedRecipient)
+    setRecipientQuery(requestedRecipient)
+    setSelectedRecipient(requestedRecipient)
+  }
   const isConnected = status === CHAT_CONNECTION_STATUS.connected
   const statusLabel = statusLabels[status] ?? 'Sin conexión'
   const newestMessage = messages.at(-1)

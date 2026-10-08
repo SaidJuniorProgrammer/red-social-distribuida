@@ -6,11 +6,13 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from '../src/App.jsx'
+import ChatPage from '../src/pages/ChatPage.jsx'
 import AuthProvider from '../src/context/AuthProvider.jsx'
 import ChatProvider from '../src/context/ChatProvider.jsx'
+import { writeSession } from '../src/context/authStorage.js'
 import api from '../src/services/api.js'
 
 class MockWebSocket {
@@ -54,6 +56,22 @@ class MockWebSocket {
 function renderApp() {
   return render(
     <MemoryRouter initialEntries={['/login']}>
+      <AuthProvider>
+        <ChatProvider>
+          <App />
+        </ChatProvider>
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+}
+
+function renderAuthenticatedApp(path) {
+  writeSession({
+    token: 'jwt-prueba',
+    user: { username: 'oscar' },
+  })
+  return render(
+    <MemoryRouter initialEntries={[path]}>
       <AuthProvider>
         <ChatProvider>
           <App />
@@ -285,4 +303,50 @@ it('conserva el error cuando el navegador cierra la conexión', async () => {
     'No se pudo mantener la conexión del chat.',
   )
   fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+})
+
+it('abre desde una notificación la conversación indicada en la URL', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { notificaciones: [] } })
+  renderAuthenticatedApp('/chat?usuario=said')
+
+  await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1))
+  await act(async () => MockWebSocket.instances[0].open())
+
+  expect(screen.getByLabelText('Buscar usuario registrado')).toHaveValue('said')
+  expect(screen.getByLabelText('Mensaje')).toBeEnabled()
+  expect(screen.getByText('@said', { selector: '.chat-room__identity span' })).toBeInTheDocument()
+})
+
+it('cambia la conversación cuando la URL ?usuario= cambia sin desmontar la página', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { notificaciones: [] } })
+  writeSession({ token: 'jwt-prueba', user: { username: 'oscar' } })
+
+  function Harness() {
+    const navigate = useNavigate()
+    return (
+      <>
+        <button type="button" onClick={() => navigate('/chat?usuario=said')}>cambiar</button>
+        <ChatPage />
+      </>
+    )
+  }
+
+  render(
+    <MemoryRouter initialEntries={['/chat?usuario=ana']}>
+      <AuthProvider>
+        <ChatProvider>
+          <Harness />
+        </ChatProvider>
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1))
+  await act(async () => MockWebSocket.instances[0].open())
+  expect(screen.getByLabelText('Buscar usuario registrado')).toHaveValue('ana')
+
+  fireEvent.click(screen.getByRole('button', { name: 'cambiar' }))
+
+  expect(screen.getByLabelText('Buscar usuario registrado')).toHaveValue('said')
+  expect(screen.getByText('@said', { selector: '.chat-room__identity span' })).toBeInTheDocument()
 })

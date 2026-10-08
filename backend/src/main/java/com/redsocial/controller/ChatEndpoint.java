@@ -113,8 +113,19 @@ public class ChatEndpoint {
 
             ChatMessage mensaje = mensajeGuardado.get();
 
-            // SOLUCIÓN CODERABBIT: Disparar la alerta Web Push del chat después del guardado exitoso
-            webPushService.notificarNuevoMensaje(mensaje.emisor_id(), mensaje.destinatario_id(), mensaje.id());
+            // La alerta Web Push es secundaria: un fallo al generarla nunca debe impedir la
+            // entrega del mensaje (que ya quedó guardado y se entrega aunque el destinatario
+            // esté desconectado). Por eso se aísla del flujo de envío.
+            try {
+                webPushService.notificarNuevoMensaje(mensaje.emisor_id(), mensaje.destinatario_id(), mensaje.id());
+            } catch (Exception notificacionError) {
+                LOG.warnf(
+                        "El mensaje de %s para %s se guardó, pero no se pudo generar la notificación: %s",
+                        mensaje.emisor_id(),
+                        mensaje.destinatario_id(),
+                        notificacionError.getMessage()
+                );
+            }
 
             String payloadJson = objectMapper.writeValueAsString(mensaje);
             WebSocketConnection sesionDestinatario = sesiones.get(mensajeNormalizado.destinatario_id());

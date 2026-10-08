@@ -41,8 +41,28 @@ export async function unsubscribeUserFromPush() {
   await subscription.unsubscribe()
 }
 
-export async function getNotifications(username, { signal } = {}) {
-  const { data } = await api.get(`/push/notificaciones/${encodeURIComponent(username)}`, { signal })
+export async function disconnectUserFromPush(token) {
+  const subscription = await getCurrentPushSubscription()
+  if (!subscription) return
+
+  try {
+    await api.delete('/push/subscribe', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      params: { endpoint: subscription.endpoint },
+    })
+  } catch {
+    // El cierre de sesión debe retirar el acceso local aunque el servidor no responda.
+  }
+  await subscription.unsubscribe()
+}
+
+export async function syncGrantedPushSubscription() {
+  if (!isWebPushSupported() || Notification.permission !== 'granted') return null
+  return subscribeUserToPush()
+}
+
+export async function getNotifications({ signal } = {}) {
+  const { data } = await api.get('/notificaciones', { signal })
   return Array.isArray(data?.notificaciones) ? data.notificaciones : []
 }
 
@@ -52,6 +72,14 @@ export async function registerPushSubscription(subscription) {
     endpoint: subscription.endpoint,
     keys: subscriptionData.keys ?? {},
   })
+}
+
+export async function markNotificationAsRead(notificationId) {
+  await api.put(`/notificaciones/${encodeURIComponent(notificationId)}/leer`)
+}
+
+export async function markAllNotificationsAsRead() {
+  await api.put('/notificaciones/leer-todas')
 }
 
 function hasApplicationServerKey(subscription, expectedKey) {

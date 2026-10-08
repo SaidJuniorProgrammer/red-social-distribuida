@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import useAuth from '../hooks/useAuth.js'
+import useNotifications from '../hooks/useNotifications.js'
 import { formatDisplayName, getInitial } from '../utils/userDisplay.js'
 import BrandMark from './BrandMark.jsx'
 
@@ -16,6 +17,7 @@ const navigationItems = [
 
 function AppSidebar() {
   const { logout, user } = useAuth()
+  const { unreadCount } = useNotifications()
   const location = useLocation()
   const activeLinkRef = useRef(null)
 
@@ -42,17 +44,28 @@ function AppSidebar() {
             </>
           )
 
+          const hasUnread = item.to === '/notificaciones' && unreadCount > 0
+          const ariaLabel = hasUnread
+            ? `${item.label} (${unreadCount > 99 ? '99+' : unreadCount} sin leer)`
+            : item.label
+
           return (
             <NavLink
               className={({ isActive }) => (
                 isActive ? 'messages-sidebar__active' : undefined
               )}
+              aria-label={ariaLabel}
               end={item.to === '/feed'}
               key={item.label}
               ref={location.pathname === item.to ? activeLinkRef : null}
               to={item.to}
             >
               {content}
+              {item.to === '/notificaciones' && unreadCount > 0 && (
+                <span className="notifications-badge" aria-hidden="true">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </NavLink>
           )
         })}
